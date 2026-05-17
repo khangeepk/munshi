@@ -34,7 +34,16 @@ async function main() {
     update: { passwordHash: dataPwd },
   });
 
+  // Create requested admin user
+  const newAdminPwd = hashPassword('SamiKhan786');
+  await prisma.profile.upsert({
+    where: { email: 'admin@samikhan.store' },
+    create: { email: 'admin@samikhan.store', full_name: 'System Administrator', role: 'ADMIN', passwordHash: newAdminPwd },
+    update: { passwordHash: newAdminPwd },
+  });
+
   console.log('\n🎉 Seed complete! Credentials:');
+  console.log('   Login: admin@samikhan.store | Password: SamiKhan786');
   console.log('   Login: admin       | Password: password123');
   console.log('   Login: user        | Password: user123');
 }
