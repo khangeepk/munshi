@@ -18,6 +18,9 @@ interface ListedUser {
   email: string;
   name: string;
   role: string;
+  can_create_cases?: boolean;
+  can_edit_cases?: boolean;
+  can_delete_cases?: boolean;
   createdAt: string;
 }
 
@@ -44,6 +47,9 @@ export default function SettingsPage() {
   const [newName, setNewName] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState<'ADMIN' | 'DATA_ENTRY'>('DATA_ENTRY');
+  const [newUserCanCreate, setNewUserCanCreate] = useState(false);
+  const [newUserCanEdit, setNewUserCanEdit] = useState(false);
+  const [newUserCanDelete, setNewUserCanDelete] = useState(false);
   const [addingUser, setAddingUser] = useState(false);
   const [userMsg, setUserMsg] = useState<string | null>(null);
 
@@ -317,6 +323,9 @@ export default function SettingsPage() {
           name: newName.trim(),
           password: newUserPassword,
           role: newUserRole,
+          can_create_cases: newUserCanCreate,
+          can_edit_cases: newUserCanEdit,
+          can_delete_cases: newUserCanDelete,
         }),
       });
       const data = await res.json();
@@ -324,6 +333,9 @@ export default function SettingsPage() {
       setNewEmail('');
       setNewName('');
       setNewUserPassword('');
+      setNewUserCanCreate(false);
+      setNewUserCanEdit(false);
+      setNewUserCanDelete(false);
       setUserMsg('User created.');
       await loadUsers();
     } catch (e: unknown) {
@@ -755,6 +767,27 @@ export default function SettingsPage() {
                 </select>
               </div>
             </div>
+            
+            {newUserRole === 'DATA_ENTRY' && (
+              <div className="mt-6 p-4 rounded-xl border border-border bg-muted/20">
+                <label className={labelCls}>Permissions</label>
+                <div className="flex flex-col gap-3 mt-3">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" checked={newUserCanCreate} onChange={(e) => setNewUserCanCreate(e.target.checked)} className="w-4 h-4 rounded border-border text-blue-600 focus:ring-blue-500 bg-background" />
+                    <span className="text-sm font-medium text-foreground">Can Create Cases & Records</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" checked={newUserCanEdit} onChange={(e) => setNewUserCanEdit(e.target.checked)} className="w-4 h-4 rounded border-border text-blue-600 focus:ring-blue-500 bg-background" />
+                    <span className="text-sm font-medium text-foreground">Can Edit Existing Records</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" checked={newUserCanDelete} onChange={(e) => setNewUserCanDelete(e.target.checked)} className="w-4 h-4 rounded border-border text-rose-600 focus:ring-rose-500 bg-background" />
+                    <span className="text-sm font-medium text-foreground">Can Delete Records</span>
+                  </label>
+                </div>
+              </div>
+            )}
+
             <button
               type="button"
               onClick={() => void addUser()}
@@ -796,7 +829,18 @@ export default function SettingsPage() {
                     <tr key={u.id} className="border-b border-border hover:bg-muted/20">
                       <td className="px-6 py-3 font-medium">{u.email}</td>
                       <td className="px-6 py-3">{u.name}</td>
-                      <td className="px-6 py-3">{u.role}</td>
+                      <td className="px-6 py-3">
+                        <div className="flex flex-col gap-1">
+                          <span className="font-medium">{u.role}</span>
+                          {u.role !== 'ADMIN' && (
+                            <div className="flex gap-1 mt-1">
+                              {u.can_create_cases && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">CREATE</span>}
+                              {u.can_edit_cases && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700">EDIT</span>}
+                              {u.can_delete_cases && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700">DELETE</span>}
+                            </div>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-6 py-3 text-right">
                         <button
                           type="button"

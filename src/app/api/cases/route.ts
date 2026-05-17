@@ -5,8 +5,8 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
-import { getAuthenticatedUser, isAdmin } from '@/lib/auth-server';
-import { unauthorized } from '@/lib/http-errors';
+import { getAuthenticatedUser, isAdmin, canCreateCases } from '@/lib/auth-server';
+import { forbidden, unauthorized } from '@/lib/http-errors';
 
 export async function GET(request: Request) {
   try {
@@ -17,9 +17,7 @@ export async function GET(request: Request) {
     const status = searchParams.get('status');
 
     const where: any = {};
-    if (!isAdmin(u.role as any)) {
-      where.lawyer_id = u.id;
-    }
+    // Removed legacy lawyer_id filter so all users can see all cases.
     if (status) {
       where.case_status = status;
     }
@@ -58,6 +56,7 @@ export async function POST(request: Request) {
   try {
     const u = await getAuthenticatedUser();
     if (!u) return unauthorized();
+    if (!canCreateCases(u)) return forbidden();
 
     const body = await request.json();
 

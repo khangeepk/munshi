@@ -18,6 +18,9 @@ model Profile {
   email         String   @unique
   passwordHash  String?
   avatarUrl     String?
+  can_create_cases Boolean @default(false)
+  can_edit_cases   Boolean @default(false)
+  can_delete_cases Boolean @default(false)
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 

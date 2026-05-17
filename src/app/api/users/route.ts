@@ -17,6 +17,9 @@ export async function GET() {
       email:     true,
       full_name: true,
       role:      true,
+      can_create_cases: true,
+      can_edit_cases: true,
+      can_delete_cases: true,
       created_at: true,
     },
     orderBy: { created_at: 'asc' },
@@ -38,6 +41,10 @@ export async function POST(request: Request) {
     const name     = typeof body.name     === 'string' ? body.name.trim()     : '';
     const password = typeof body.password === 'string' ? body.password        : '';
     const role     = typeof body.role     === 'string' ? body.role.trim()     : 'DATA_ENTRY';
+    
+    const can_create_cases = !!body.can_create_cases;
+    const can_edit_cases   = !!body.can_edit_cases;
+    const can_delete_cases = !!body.can_delete_cases;
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: 'Valid email required' }, { status: 400 });
@@ -53,8 +60,11 @@ export async function POST(request: Request) {
         full_name:    name,
         role,
         passwordHash: hashPassword(password),
+        can_create_cases,
+        can_edit_cases,
+        can_delete_cases,
       },
-      select: { id: true, email: true, full_name: true, role: true, created_at: true },
+      select: { id: true, email: true, full_name: true, role: true, can_create_cases: true, can_edit_cases: true, can_delete_cases: true, created_at: true },
     });
 
     return NextResponse.json({ ...created, name: created.full_name, createdAt: created.created_at }, { status: 201 });

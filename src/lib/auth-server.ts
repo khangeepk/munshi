@@ -27,6 +27,9 @@ export async function getAuthenticatedUser() {
       full_name: true,
       role: true,
       avatarUrl: true,
+      can_create_cases: true,
+      can_edit_cases: true,
+      can_delete_cases: true,
     },
   });
   if (user) {
@@ -40,7 +43,26 @@ export function isAdmin(role: SessionRole | string): boolean {
   return role === 'ADMIN';
 }
 
-/** Only administrators may modify or delete persisted case/hearing records. */
+/** Check if user can modify records (legacy generic check) */
 export function canModifyRecords(role: SessionRole | string): boolean {
   return role === 'ADMIN';
+}
+
+/** New granular permission checks */
+export function canCreateCases(user: any): boolean {
+  if (!user) return false;
+  if (isAdmin(user.role)) return true;
+  return !!user.can_create_cases;
+}
+
+export function canEditCases(user: any): boolean {
+  if (!user) return false;
+  if (isAdmin(user.role)) return true;
+  return !!user.can_edit_cases;
+}
+
+export function canDeleteCases(user: any): boolean {
+  if (!user) return false;
+  if (isAdmin(user.role)) return true;
+  return !!user.can_delete_cases;
 }

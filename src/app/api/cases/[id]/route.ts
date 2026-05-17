@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
-import { canModifyRecords, getAuthenticatedUser, isAdmin } from '@/lib/auth-server';
+import { canEditCases, canDeleteCases, getAuthenticatedUser, isAdmin } from '@/lib/auth-server';
 import { forbidden, unauthorized } from '@/lib/http-errors';
 
 // ─── GET /api/cases/:id ──────────────────────────────────────────────────────
@@ -33,8 +33,8 @@ export async function GET(
     });
 
     if (!caseData) return NextResponse.json({ error: 'Case not found' }, { status: 404 });
-    if (!isAdmin(u.role) && caseData.lawyer_id !== u.id) return forbidden();
-
+    // Allow all users to view individual cases now.
+    
     // Map to legacy shape so the existing UI doesn't break
     const mapped = {
       ...caseData,
@@ -59,7 +59,7 @@ export async function PATCH(
   try {
     const u = await getAuthenticatedUser();
     if (!u) return unauthorized();
-    if (!canModifyRecords(u.role)) return forbidden();
+    if (!canEditCases(u)) return forbidden();
 
     const { id } = await context.params;
 
@@ -150,7 +150,7 @@ export async function DELETE(
   try {
     const u = await getAuthenticatedUser();
     if (!u) return unauthorized();
-    if (!canModifyRecords(u.role)) return forbidden();
+    if (!canDeleteCases(u)) return forbidden();
 
     const { id } = await context.params;
 
