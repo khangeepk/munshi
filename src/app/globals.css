@@ -1,0 +1,245 @@
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@layer base {
+  body {
+    @apply transition-colors duration-300 bg-background text-foreground;
+  }
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+@layer utilities {
+  .card-metric {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+  .card-metric:hover {
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+  }
+  .dark .card-metric {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  }
+  .dark .card-metric:hover {
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+  }
+
+  /* Bento metric card — glow border on hover using CSS custom property */
+  .bento-card {
+    transition: box-shadow 0.25s ease, transform 0.2s ease, border-color 0.25s ease;
+  }
+  .bento-card:hover {
+    border-color: color-mix(in srgb, var(--glow-color, #3B82F6) 55%, transparent) !important;
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--glow-color, #3B82F6) 30%, transparent),
+      0 8px 32px color-mix(in srgb, var(--glow-color, #3B82F6) 18%, transparent),
+      0 2px 8px rgba(0,0,0,0.2);
+  }
+}
+
+@theme {
+  --font-heading: var(--font-sans);
+
+  --font-sans: var(--font-sans);
+
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-sidebar-border: var(--sidebar-border);
+
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+
+  --color-sidebar-accent: var(--sidebar-accent);
+
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+
+  --color-sidebar-primary: var(--sidebar-primary);
+
+  --color-sidebar-foreground: var(--sidebar-foreground);
+
+  --color-sidebar: var(--sidebar);
+
+  --color-chart-5: var(--chart-5);
+
+  --color-chart-4: var(--chart-4);
+
+  --color-chart-3: var(--chart-3);
+
+  --color-chart-2: var(--chart-2);
+
+  --color-chart-1: var(--chart-1);
+
+  --color-ring: var(--ring);
+
+  --color-input: var(--input);
+
+  --color-border: var(--border);
+
+  --color-destructive: var(--destructive);
+
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-accent: var(--accent);
+
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-muted: var(--muted);
+
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-secondary: var(--secondary);
+
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-primary: var(--primary);
+
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-popover: var(--popover);
+
+  --color-card-foreground: var(--card-foreground);
+
+  --color-card: var(--card);
+
+  --color-foreground: var(--foreground);
+
+  --color-background: var(--background);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+
+  --radius-md: calc(var(--radius) * 0.8);
+
+  --radius-lg: var(--radius);
+
+  --radius-xl: calc(var(--radius) * 1.4);
+
+  --radius-2xl: calc(var(--radius) * 1.8);
+
+  --radius-3xl: calc(var(--radius) * 2.2);
+
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  /* ── Light Mode: crisp, minimal, professional ── */
+  --background:    #F4F5F7;
+  --foreground:    #0D0D0D;
+
+  --card:          #FFFFFF;
+  --card-foreground: #0D0D0D;
+
+  --popover:       #FFFFFF;
+  --popover-foreground: #0D0D0D;
+
+  --primary:       #2563EB;      /* Electric Blue */
+  --primary-foreground: #FFFFFF;
+
+  --secondary:     #F1F3F5;
+  --secondary-foreground: #1A1A2E;
+
+  --muted:         #EAEDF0;
+  --muted-foreground: #6B7280;
+
+  --accent:        #EFF6FF;
+  --accent-foreground: #1D4ED8;
+
+  --destructive:   #EF4444;
+
+  --border:        #E2E5EA;
+  --input:         #E9ECF0;
+  --ring:          #3B82F6;
+
+  --radius: 0.75rem;
+
+  /* Sidebar — deep charcoal even in light mode */
+  --sidebar:                  #1A1A2E;
+  --sidebar-foreground:       #A0AEC0;
+  --sidebar-primary:          #2563EB;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent:           #252540;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border:           rgba(255,255,255,0.06);
+  --sidebar-ring:             #3B82F6;
+
+  /* Glow tokens */
+  --glow-blue:  0 0 0 1px rgba(59,130,246,0.35), 0 0 20px rgba(59,130,246,0.12);
+}
+
+.dark {
+  /* ── Dark Mode: Deep Charcoal, #121212 base ── */
+  --background:    #0E0E0E;
+  --foreground:    #F0F0F0;
+
+  --card:          #1A1A1A;
+  --card-foreground: #F0F0F0;
+
+  --popover:       #1F1F1F;
+  --popover-foreground: #F0F0F0;
+
+  --primary:       #3B82F6;      /* Electric Blue accent */
+  --primary-foreground: #FFFFFF;
+
+  --secondary:     #1F1F1F;
+  --secondary-foreground: #E5E7EB;
+
+  --muted:         #1F1F1F;
+  --muted-foreground: #6B7280;
+
+  --accent:        #1E3A5F;
+  --accent-foreground: #93C5FD;
+
+  --destructive:   #F87171;
+
+  --border:        rgba(255,255,255,0.08);
+  --input:         rgba(255,255,255,0.10);
+  --ring:          #3B82F6;
+
+  /* Sidebar — same deep charcoal in dark mode */
+  --sidebar:                  #111111;
+  --sidebar-foreground:       #8892A4;
+  --sidebar-primary:          #3B82F6;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent:           #1A1A2E;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border:           rgba(255,255,255,0.05);
+  --sidebar-ring:             #3B82F6;
+
+  /* Glow tokens */
+  --glow-blue: 0 0 0 1px rgba(59,130,246,0.4), 0 0 24px rgba(59,130,246,0.15);
+}
+
+@media print {
+  body > *:not(#print-root) {
+    display: none !important;
+  }
+  
+  #print-root {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+
+  /* Force colors for printing to save ink */
+  .print-area * {
+    color: #000 !important;
+    background: transparent !important;
+  }
+  
+  @page {
+    margin: 1.5cm;
+    size: A4 portrait;
+  }
+}

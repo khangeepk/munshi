@@ -1,0 +1,7 @@
+Direct URL:   postgresql://postgres:[Khangee786786]@db.plnjsgqqtenhdqusnzhw.supabase.co:5432/postgres
+
+Database URL: postgresql://postgres:[Khangee786786]@db.plnjsgqqtenhdqusnzhw.supabase.co:5432/postgres
+
+Anon_Key:  sb_publishable_dYf1HHsqMeg2LZQpFRlw4A_x_Eb2uiP
+
+NEXT_PUBLIC_SUPABASE_URL:  https://plnjsgqqtenhdqusnzhw.supabase.co

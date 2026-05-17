@@ -1,0 +1,218 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── SQ Tech — Lawyer Management System ─────────────────────────────────────
+
+model Profile {
+  id            String   @id @default(uuid())
+  full_name     String
+  role          String   @default("LAWYER")
+  law_firm_name String?
+  email         String   @unique
+  passwordHash  String?
+  avatarUrl     String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  cases              Case[]               @relation("CaseLawyer")
+  activities         Activity[]
+  billableHours      BillableHour[]
+  commissions        AssociateCommission[]
+
+  @@map("profiles")
+}
+
+model Client {
+  id             String   @id @default(uuid())
+  name           String
+  email          String?
+  phone          String?
+  cnic_number    String?
+  address        String?
+  // KYC fields
+  cnic_doc_url   String?
+  date_of_birth  DateTime?
+  occupation     String?
+  notes          String?
+  comm_log       Json?    @default("[]")
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  cases          Case[]
+  trustAccounts  TrustAccount[]
+
+  @@map("clients")
+}
+
+model Case {
+  id             String    @id @default(uuid())
+  title          String
+  client_id      String
+  client         Client    @relation(fields: [client_id], references: [id])
+
+  lawyer_id      String?
+  lawyer         Profile?  @relation("CaseLawyer", fields: [lawyer_id], references: [id])
+
+  court_name     String
+  case_status    String    @default("FILED")
+  hearing_date   DateTime?
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  // Legacy UI-compat fields
+  caseType          String    @default("Civil")
+  caseAgainst       String    @default("Unknown")
+  caseFrom          String?
+  clientPhone       String?
+  submissionDate    DateTime  @default(now())
+  firNumber         String?
+  location          String    @default("ISLAMABAD")
+  judgeName         String?
+  totalFee          Float?
+  pendingFeeDueDate DateTime?
+  nextHearingDate   DateTime?
+  decision          String?
+  remarks           String?
+
+  billings      Billing[]
+  documents     Document[]
+  history       Activity[]
+  billableHours BillableHour[]
+  commissions   AssociateCommission[]
+
+  @@map("cases")
+}
+
+model Billing {
+  id          String   @id @default(uuid())
+  case_id     String
+  case        Case     @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  amount      Float
+  status      String   @default("unpaid")
+  invoice_url String?
+  created_at  DateTime @default(now())
+  method      String   @default("Cash")
+  date        DateTime @default(now())
+  slipUrl     String?
+
+  @@map("billings")
+}
+
+model Document {
+  id          String   @id @default(uuid())
+  case_id     String
+  case        Case     @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  file_path   String
+  upload_date DateTime @default(now())
+  title       String   @default("Document")
+  category    String   @default("MISC")
+
+  @@map("documents")
+}
+
+model Activity {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  date        DateTime @default(now())
+  caseId      String
+  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  userId      String
+  user        Profile  @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@map("activities")
+}
+
+// ─── NEW: Billable Hours Tracker ─────────────────────────────────────────────
+model BillableHour {
+  id          String    @id @default(uuid())
+  case_id     String
+  case        Case      @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  lawyer_id   String
+  lawyer      Profile   @relation(fields: [lawyer_id], references: [id])
+  start_time  DateTime
+  end_time    DateTime?
+  duration_mins Int?
+  hourly_rate Float     @default(5000)
+  notes       String?
+  is_billed   Boolean   @default(false)
+  created_at  DateTime  @default(now())
+
+  @@map("billable_hours")
+}
+
+// ─── NEW: IOLTA Trust Accounting ─────────────────────────────────────────────
+model TrustAccount {
+  id          String             @id @default(uuid())
+  client_id   String
+  client      Client             @relation(fields: [client_id], references: [id])
+  balance     Float              @default(0)
+  currency    String             @default("PKR")
+  created_at  DateTime           @default(now())
+  updated_at  DateTime           @updatedAt
+
+  transactions TrustTransaction[]
+
+  @@map("trust_accounts")
+}
+
+model TrustTransaction {
+  id               String       @id @default(uuid())
+  trust_account_id String
+  trust_account    TrustAccount @relation(fields: [trust_account_id], references: [id], onDelete: Cascade)
+  type             String       // DEPOSIT | WITHDRAWAL | TRANSFER
+  amount           Float
+  description      String?
+  reference_no     String?
+  created_at       DateTime     @default(now())
+
+  @@map("trust_transactions")
+}
+
+// ─── NEW: Associate Commission ────────────────────────────────────────────────
+model AssociateCommission {
+  id              String   @id @default(uuid())
+  case_id         String
+  case            Case     @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  associate_id    String
+  associate       Profile  @relation(fields: [associate_id], references: [id])
+  milestone       String   // e.g. "HEARING_COMPLETED", "CASE_CLOSED", "PAYMENT_RECEIVED"
+  commission_pct  Float    @default(10)
+  base_amount     Float
+  commission_amt  Float
+  status          String   @default("PENDING") // PENDING | APPROVED | PAID
+  paid_at         DateTime?
+  notes           String?
+  created_at      DateTime @default(now())
+
+  @@map("associate_commissions")
+}
+
+// ─── SQ Tech — WhatsApp Notification Queue ────────────────────────────────────
+// Persists every outbound notification intent so messages are never silently
+// lost when the WhatsApp client is offline or running in serverless mode.
+// status: PENDING → message queued, SENT → delivered, FAILED → error, CANCELLED
+model WhatsappQueue {
+  id        String    @id @default(uuid())
+  phone     String
+  message   String
+  caseId    String?
+  caseTitle String?
+  status    String    @default("PENDING") // PENDING | SENT | FAILED | CANCELLED
+  waLink    String?
+  error     String?
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("whatsapp_queue")
+}
+
+

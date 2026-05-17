@@ -1,0 +1,26 @@
+[build]
+  command = "npx prisma generate && npx prisma db push --accept-data-loss && npm run build"
+  publish = ".next"  # Next.js App Router default output dir
+
+[build.environment]
+  NODE_VERSION = "20"
+  # Set Prisma to use the correct binary target for Netlify
+  PRISMA_CLI_BINARY_TARGETS = "native,rhel-openssl-1.0.x"
+
+# IMPORTANT: For Next.js App Router on Netlify, we need the Netlify Next.js plugin.
+# The plugin handles serverless functions, routing, and static generation automatically.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Basic SPA redirect fallback (though the plugin usually handles this)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  condition = {Role = ["admin"]} # Optional if you want strict checking, but usually not needed.
+
+# Redirects are mostly handled by Next.js plugin, but keeping a fallback:
+[[redirects]]
+  from = "/*"
+  to = "/_not-found"
+  status = 404
