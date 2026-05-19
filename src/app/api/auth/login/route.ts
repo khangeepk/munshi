@@ -54,11 +54,19 @@ export async function POST(request: Request) {
     const { default: prisma } = await import('@/lib/prisma');
     const { verifyPassword } = await import('@/lib/password');
 
+    console.log('[LOGIN] Connecting to DB with URL length:', process.env.DATABASE_URL?.length || 0);
+    if (process.env.DATABASE_URL) {
+      const masked = process.env.DATABASE_URL.replace(/:([^:@]+)@/, ':****@');
+      console.log('[LOGIN] Masked DATABASE_URL:', masked);
+    } else {
+      console.log('[LOGIN] DATABASE_URL env var is NOT set. Using fallback.');
+    }
+
     let user;
     try {
       user = await prisma.user.findUnique({ where: { email: userId } });
-    } catch (dbError) {
-      console.error('[LOGIN] DB unreachable:', dbError);
+    } catch (dbError: any) {
+      console.error('[LOGIN] DB unreachable:', dbError?.message || dbError);
       return NextResponse.json(
         { error: 'Database unavailable. Please try again later.' },
         { status: 503 }
