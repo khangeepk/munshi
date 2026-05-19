@@ -13,7 +13,6 @@ const PUBLIC_PATHS = [
   LOGIN_PATH,
   '/api/health',
   '/api/auth/login',
-  '/api/debug-db',
   '/_next',
   '/favicon.ico',
 ];
