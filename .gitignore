@@ -52,3 +52,16 @@ next-env.d.ts
 # local sqlite dev database
 dev.db
 dev.db-journal
+
+# Temporary diagnostic and verification scripts
+/verify-*.ts
+/test-*.ts
+/fix-*.ts
+/prepare-*.ts
+/*.sql
+/*.png
+/*.txt
+/test.ts
+/fix-dates.js
+/fix-cases.js
+/migrate-data.js

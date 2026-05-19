@@ -39,8 +39,10 @@ const sqTechItems = [
 ];
 
 function roleLabel(role: string) {
-  if (role === 'ADMIN')      return 'Administrator';
-  if (role === 'DATA_ENTRY') return 'Data Entry';
+  if (role === 'SUPER_ADMIN')  return 'Super Admin';
+  if (role === 'TENANT_ADMIN') return 'Advocate';
+  if (role === 'TENANT_USER')  return 'Munshi';
+  if (role === 'CLIENT')       return 'Client';
   return role;
 }
 
@@ -167,7 +169,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
               <p className="text-xs font-semibold text-white truncate">{user?.name ?? 'Account'}</p>
               <span
                 className={`inline-block mt-0.5 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                  user?.role === 'ADMIN'
+                  user?.role === 'SUPER_ADMIN' || user?.role === 'TENANT_ADMIN'
                     ? 'bg-blue-500/20 text-blue-300'
                     : 'bg-amber-500/20 text-amber-300'
                 }`}

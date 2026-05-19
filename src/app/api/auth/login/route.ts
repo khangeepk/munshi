@@ -69,6 +69,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
+    if (user.status === 'Blocked' || user.status === 'BLOCKED') {
+      return NextResponse.json({ error: 'account_suspended' }, { status: 403 });
+    }
+
+    if (user.role !== 'SUPER_ADMIN' && user.tenantId) {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: user.tenantId },
+      });
+      if (tenant && (tenant.status === 'Blocked' || tenant.status === 'BLOCKED' || tenant.status === 'Paused' || tenant.status === 'PAUSED')) {
+        return NextResponse.json({ error: 'account_suspended' }, { status: 403 });
+      }
+    }
+
     const token = signSessionPayload(
       buildSessionPayload({
         id: user.id,

@@ -61,13 +61,13 @@ export async function POST(req: Request) {
     const receiver = await prisma.user.findFirst({
       where: {
         tenantId,
-        role: { in: ['TENANT_ADMIN', 'ADVOCATE'] },
+        role: { in: ['TENANT_ADMIN', 'TENANT_USER'] },
         deletedAt: null,
         ...(caseId
           ? { assignedCases: { some: { id: caseId } } }
           : {}),
       },
-      orderBy: { role: 'asc' }, // ADVOCATE before TENANT_ADMIN
+      orderBy: { role: 'asc' }, // TENANT_ADMIN before TENANT_USER
     });
 
     if (!receiver) {

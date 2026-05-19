@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Scale, Loader2, Lock, User } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
@@ -17,6 +17,15 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const q = new URLSearchParams(window.location.search);
+      if (q.get('error') === 'account_suspended') {
+        setError('Access Denied: Your account or tenant chamber has been suspended.');
+      }
+    }
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -30,7 +39,11 @@ export default function LoginPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(typeof data.error === 'string' ? data.error : 'Sign-in failed');
+        if (data.error === 'account_suspended') {
+          setError('Access Denied: Your account or tenant chamber has been suspended.');
+        } else {
+          setError(typeof data.error === 'string' ? data.error : 'Sign-in failed');
+        }
         return;
       }
       await refresh();

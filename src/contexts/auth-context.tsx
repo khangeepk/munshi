@@ -10,16 +10,9 @@ import {
 } from 'react';
 
 export type AppRole =
-  | 'ADMIN'
-  | 'DATA_ENTRY'
-  | 'LAWYER'
-  | 'PARALEGAL'
   | 'SUPER_ADMIN'
   | 'TENANT_ADMIN'
-  | 'ADVOCATE'
-  | 'JUNIOR_LAWYER'
-  | 'CLERK'
-  | 'ACCOUNTANT'
+  | 'TENANT_USER'
   | 'CLIENT';
 
 export interface AppUser {
@@ -29,6 +22,9 @@ export interface AppUser {
   role: AppRole;
   avatarUrl?: string | null;
   tenantId?: string | null;
+  canAdd?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 interface AuthCtx {
@@ -36,6 +32,9 @@ interface AuthCtx {
   loading: boolean;
   canModifyRecords: boolean;
   isAdmin: boolean;
+  canAddCases: boolean;
+  canEditCases: boolean;
+  canDeleteCases: boolean;
   refresh: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -53,6 +52,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     if (!res.ok) {
       setUser(null);
+      if (res.status === 403) {
+        try {
+          const data = await res.json();
+          if (data.error === 'account_suspended') {
+            window.location.href = '/login?error=account_suspended';
+          }
+        } catch {}
+      }
       return;
     }
     const data = await res.json();
@@ -68,8 +75,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
-  const canModifyRecords = user?.role === 'ADMIN';
-  const isAdmin = user?.role === 'ADMIN';
+  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'TENANT_ADMIN';
+  const canModifyRecords = isAdmin;
+
+  const canAddCases = isAdmin || !!user?.canAdd;
+  const canEditCases = isAdmin || !!user?.canEdit;
+  const canDeleteCases = isAdmin || !!user?.canDelete;
 
   return (
     <Ctx.Provider
@@ -78,6 +89,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         canModifyRecords,
         isAdmin,
+        canAddCases,
+        canEditCases,
+        canDeleteCases,
         refresh,
         logout,
       }}

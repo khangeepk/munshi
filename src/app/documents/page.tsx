@@ -143,7 +143,7 @@ function getRoleLabel(role: string) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function DocumentsPage() {
-  const { canModifyRecords } = useAuth();
+  const { canDeleteCases } = useAuth();
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [fetching, setFetching] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -351,7 +351,7 @@ export default function DocumentsPage() {
                               <Download className="w-4 h-4" />
                             </button>
 
-                            {canModifyRecords && (
+                            {canDeleteCases && (
                               <button
                                 onClick={() => setDeleteDoc(doc)}
                                 title="Delete"

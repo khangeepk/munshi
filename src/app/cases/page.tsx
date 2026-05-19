@@ -500,7 +500,7 @@ function EmptyState() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function CasesList() {
-  const { canModifyRecords } = useAuth();
+  const { canAddCases, canEditCases, canDeleteCases } = useAuth();
   const [cases, setCases]           = useState<CaseRow[]>([]);
   const [fetching, setFetching]     = useState(true);
   const [editCase, setEditCase]     = useState<CaseRow | null>(null);
@@ -701,15 +701,17 @@ export default function CasesList() {
                   : 'All active, pending, and closed litigations'}
             </p>
           </div>
-          <Link
-            href="/cases/new"
-            className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-primary-foreground px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-md hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shrink-0"
-            style={{ background: '#2563EB' }}
-          >
-            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span className="hidden sm:inline">Add Case</span>
-            <span className="sm:hidden">Add</span>
-          </Link>
+          {canAddCases && (
+            <Link
+              href="/cases/new"
+              className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-primary-foreground px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-md hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shrink-0"
+              style={{ background: '#2563EB' }}
+            >
+              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Add Case</span>
+              <span className="sm:hidden">Add</span>
+            </Link>
+          )}
         </div>
 
         {/* ── Table Card ── */}
@@ -882,7 +884,7 @@ export default function CasesList() {
                             </Link>
 
                             {/* Edit */}
-                            {canModifyRecords && (
+                            {canEditCases && (
                             <button
                               onClick={() => setEditCase(c)}
                               title="Edit case"
@@ -892,7 +894,7 @@ export default function CasesList() {
                             </button>
                             )}
                             {/* Delete */}
-                            {canModifyRecords && (
+                            {canDeleteCases && (
                             <button
                               onClick={() => setDeleteCase(c)}
                               title="Delete case"

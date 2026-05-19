@@ -115,7 +115,7 @@ export async function PATCH(
     // Also update the linked client's phone/name if it changed
     if ((clientPhone || caseFrom) && existing.clientId) {
       await prisma.client.updateMany({
-        where: { id: existing.clientId, tenantId: tenantId! },
+        where: { id: existing.clientId, tenantId: existing.tenantId },
         data: { 
           phone: clientPhone || undefined,
           name: caseFrom || undefined
@@ -126,12 +126,12 @@ export async function PATCH(
     if (feePaid && parseFloat(feePaid) > 0) {
       // Create a dummy invoice if none exists, or just attach to case
       let invoice = await prisma.invoice.findFirst({
-        where: { caseId: id, tenantId: tenantId! }
+        where: { caseId: id, tenantId: existing.tenantId }
       });
       if (!invoice) {
         invoice = await prisma.invoice.create({
           data: {
-            tenantId: tenantId!,
+            tenantId: existing.tenantId,
             clientId: existing.clientId,
             caseId: id,
             invoiceNumber: `INV-${Date.now()}`,
@@ -144,7 +144,7 @@ export async function PATCH(
       
       await prisma.payment.create({
         data: {
-          tenantId: tenantId!,
+          tenantId: existing.tenantId,
           clientId: existing.clientId,
           caseId: id,
           invoiceId: invoice.id,
@@ -157,7 +157,7 @@ export async function PATCH(
     }
 
     await writeAuditLog({
-      tenantId: tenantId!,
+      tenantId: existing.tenantId,
       userId: user.id,
       action: 'UPDATE',
       entityType: 'Case',

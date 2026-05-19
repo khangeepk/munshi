@@ -31,7 +31,7 @@ export async function getAuthenticatedUser() {
       tenant: null,
       password: null,
       avatarUrl: null,
-      canCreate: true,
+      canAdd: true,
       canEdit: true,
       canDelete: true,
       createdAt: new Date(),
@@ -46,6 +46,20 @@ export async function getAuthenticatedUser() {
     where: { id: session.sub },
     include: { tenant: true },
   });
+
+  if (!user) return null;
+
+  if (user.status === 'Blocked' || user.status === 'BLOCKED') {
+    return null;
+  }
+
+  if (user.role !== 'SUPER_ADMIN' && user.tenantId && user.tenant) {
+    const status = user.tenant.status;
+    if (status === 'Blocked' || status === 'BLOCKED' || status === 'Paused' || status === 'PAUSED') {
+      return null;
+    }
+  }
+
   return user;
 }
 
@@ -69,7 +83,7 @@ export async function withTenant() {
   }
 
   const status = user.tenant.status;
-  if (status !== 'ACTIVE') {
+  if (status !== 'Active' && status !== 'ACTIVE') {
     throw new Error(`Tenant is ${status}. Access denied.`);
   }
 
@@ -89,7 +103,7 @@ export function canModifyRecords(role: SessionRole | string): boolean {
 export function canCreateCases(user: any): boolean {
   if (!user) return false;
   if (isAdmin(user.role)) return true;
-  return !!user.canCreate;
+  return !!user.canAdd;
 }
 
 export function canEditCases(user: any): boolean {

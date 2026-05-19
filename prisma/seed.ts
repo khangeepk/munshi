@@ -1,72 +1,73 @@
-import { PrismaClient, TenantStatus, UserRole, DocumentType, InvoiceStatus, PaymentStatus } from '@prisma/client';
+import { PrismaClient, Role, DocumentType, InvoiceStatus, PaymentStatus } from '@prisma/client';
 import { hashPassword } from '../src/lib/password';
 
 const prisma = new PrismaClient();
 
 async function main() {
   const commonPassword = hashPassword('Test@123456');
+  const superAdminPassword = hashPassword('Khangee786786');
 
-  // --- Tenants ---
+  // --- Seed the permanent Super Admin ---
+  console.log('Seeding permanent Super Admin...');
+  const superAdmin = await prisma.user.upsert({
+    where: { email: 'sami@samikhan.store' },
+    update: {
+      password: superAdminPassword,
+      role: Role.SUPER_ADMIN,
+      tenantId: null,
+      status: 'Active',
+    },
+    create: {
+      email: 'sami@samikhan.store',
+      name: 'Sami Khan',
+      password: superAdminPassword,
+      role: Role.SUPER_ADMIN,
+      status: 'Active',
+    },
+  });
+  console.log(`Super Admin initialized: ${superAdmin.email}`);
+
+  // --- Seed Tenants ---
+  console.log('Seeding default tenants...');
   const tenantA = await prisma.tenant.upsert({
     where: { slug: 'alpha-law-firm' },
-    update: { status: TenantStatus.ACTIVE },
-    create: { name: 'Alpha Law Firm', slug: 'alpha-law-firm', email: 'contact@alpha.com', status: TenantStatus.ACTIVE },
+    update: { status: 'Active' },
+    create: { name: 'Alpha Law Firm', slug: 'alpha-law-firm', email: 'contact@alpha.com', status: 'Active' },
   });
 
   const tenantB = await prisma.tenant.upsert({
     where: { slug: 'beta-legal' },
-    update: { status: TenantStatus.ACTIVE },
-    create: { name: 'Beta Legal Associates', slug: 'beta-legal', email: 'contact@beta.com', status: TenantStatus.ACTIVE },
-  });
-
-  const tenantC = await prisma.tenant.upsert({
-    where: { slug: 'suspended-law' },
-    update: { status: TenantStatus.SUSPENDED },
-    create: { name: 'Suspended Law Office', slug: 'suspended-law', email: 'contact@suspended.com', status: TenantStatus.SUSPENDED },
+    update: { status: 'Active' },
+    create: { name: 'Beta Legal Associates', slug: 'beta-legal', email: 'contact@beta.com', status: 'Active' },
   });
 
   // --- Users ---
-  // Super Admin
-  const superAdmin = await prisma.user.upsert({
-    where: { email: 'admin@test.com' },
-    update: { password: commonPassword, role: UserRole.SUPER_ADMIN, tenantId: null },
-    create: { email: 'admin@test.com', name: 'Super Admin', password: commonPassword, role: UserRole.SUPER_ADMIN },
-  });
-
   // Tenant A Users
   const advocateA = await prisma.user.upsert({
     where: { email: 'advocate.a@test.com' },
-    update: { password: commonPassword, role: UserRole.TENANT_ADMIN, tenantId: tenantA.id },
-    create: { email: 'advocate.a@test.com', name: 'Advocate A', password: commonPassword, role: UserRole.TENANT_ADMIN, tenantId: tenantA.id },
+    update: { password: commonPassword, role: Role.TENANT_ADMIN, tenantId: tenantA.id, status: 'Active' },
+    create: { email: 'advocate.a@test.com', name: 'Advocate A', password: commonPassword, role: Role.TENANT_ADMIN, tenantId: tenantA.id, status: 'Active' },
   });
 
   const clientUserA = await prisma.user.upsert({
     where: { email: 'client.a@test.com' },
-    update: { password: commonPassword, role: UserRole.CLIENT, tenantId: tenantA.id },
-    create: { email: 'client.a@test.com', name: 'Client A', password: commonPassword, role: UserRole.CLIENT, tenantId: tenantA.id },
+    update: { password: commonPassword, role: Role.CLIENT, tenantId: tenantA.id, status: 'Active' },
+    create: { email: 'client.a@test.com', name: 'Client A', password: commonPassword, role: Role.CLIENT, tenantId: tenantA.id, status: 'Active' },
   });
 
   // Tenant B Users
   const advocateB = await prisma.user.upsert({
     where: { email: 'advocate.b@test.com' },
-    update: { password: commonPassword, role: UserRole.TENANT_ADMIN, tenantId: tenantB.id },
-    create: { email: 'advocate.b@test.com', name: 'Advocate B', password: commonPassword, role: UserRole.TENANT_ADMIN, tenantId: tenantB.id },
+    update: { password: commonPassword, role: Role.TENANT_ADMIN, tenantId: tenantB.id, status: 'Active' },
+    create: { email: 'advocate.b@test.com', name: 'Advocate B', password: commonPassword, role: Role.TENANT_ADMIN, tenantId: tenantB.id, status: 'Active' },
   });
 
-  const clientUserB = await prisma.user.upsert({
-    where: { email: 'client.b@test.com' },
-    update: { password: commonPassword, role: UserRole.CLIENT, tenantId: tenantB.id },
-    create: { email: 'client.b@test.com', name: 'Client B', password: commonPassword, role: UserRole.CLIENT, tenantId: tenantB.id },
-  });
-
-  // Tenant C Users
-  const suspendedUser = await prisma.user.upsert({
-    where: { email: 'suspended@test.com' },
-    update: { password: commonPassword, role: UserRole.TENANT_ADMIN, tenantId: tenantC.id },
-    create: { email: 'suspended@test.com', name: 'Suspended User', password: commonPassword, role: UserRole.TENANT_ADMIN, tenantId: tenantC.id },
-  });
-
-  // Delete previous test data for clean state
+  // Delete previous test data for clean state in order of dependencies
+  await prisma.message.deleteMany({ where: { case: { tenantId: { in: [tenantA.id, tenantB.id] } } } });
+  await prisma.payment.deleteMany({ where: { tenantId: { in: [tenantA.id, tenantB.id] } } });
+  await prisma.invoice.deleteMany({ where: { tenantId: { in: [tenantA.id, tenantB.id] } } });
+  await prisma.document.deleteMany({ where: { tenantId: { in: [tenantA.id, tenantB.id] } } });
+  await prisma.hearing.deleteMany({ where: { tenantId: { in: [tenantA.id, tenantB.id] } } });
   await prisma.case.deleteMany({ where: { tenantId: { in: [tenantA.id, tenantB.id] } } });
   await prisma.client.deleteMany({ where: { tenantId: { in: [tenantA.id, tenantB.id] } } });
 
@@ -76,7 +77,7 @@ async function main() {
     data: { tenantId: tenantA.id, userId: clientUserA.id, name: 'Client A Profile', phone: '111222333', email: 'client.a@test.com' }
   });
 
-  const clientProfileA2 = await prisma.client.create({ // regular client without user access
+  const clientProfileA2 = await prisma.client.create({
     data: { tenantId: tenantA.id, name: 'Client A Profile 2', phone: '444555666' }
   });
 
@@ -87,24 +88,15 @@ async function main() {
   const caseA2 = await prisma.case.create({
     data: { tenantId: tenantA.id, clientId: clientProfileA1.id, caseTitle: 'Tax Issue A', caseNumber: 'C-A-002', courtName: 'Tax Tribunal', caseType: 'Tax', oppositeParty: 'FBR' }
   });
-  const caseA3 = await prisma.case.create({
-    data: { tenantId: tenantA.id, clientId: clientProfileA2.id, caseTitle: 'Divorce A', caseNumber: 'C-A-003', courtName: 'Family Court', caseType: 'Family', oppositeParty: 'Mrs. Y' }
-  });
 
   // Hearings for Tenant A
   await prisma.hearing.create({
     data: { tenantId: tenantA.id, caseId: caseA1.id, hearingDate: new Date(), courtName: 'High Court', purpose: 'Evidence', createdById: advocateA.id }
   });
-  await prisma.hearing.create({
-    data: { tenantId: tenantA.id, caseId: caseA2.id, hearingDate: new Date(Date.now() + 86400000), courtName: 'Tax Tribunal', purpose: 'Arguments', createdById: advocateA.id }
-  });
 
-  // Documents for Tenant A (1 public, 1 private)
+  // Documents for Tenant A
   await prisma.document.create({
     data: { tenantId: tenantA.id, caseId: caseA1.id, uploadedById: advocateA.id, title: 'Public Notice', fileUrl: 'https://example.com/doc1.pdf', type: DocumentType.OTHER, isPrivate: false }
-  });
-  await prisma.document.create({
-    data: { tenantId: tenantA.id, caseId: caseA1.id, uploadedById: advocateA.id, title: 'Private Notes', fileUrl: 'https://example.com/doc2.pdf', type: DocumentType.OTHER, isPrivate: true }
   });
 
   // Invoice for Tenant A
@@ -117,29 +109,7 @@ async function main() {
     data: { tenantId: tenantA.id, clientId: clientProfileA1.id, invoiceId: invoiceA.id, amount: 2000, method: 'Cash', status: PaymentStatus.COMPLETED }
   });
 
-  // Message for Tenant A
-  await prisma.message.create({
-    data: { caseId: caseA1.id, clientId: clientProfileA1.id, senderId: advocateA.id, receiverId: clientUserA.id, content: 'Please review your case documents.' }
-  });
-
-  // --- Tenant B Data ---
-  const clientProfileB = await prisma.client.create({
-    data: { tenantId: tenantB.id, userId: clientUserB.id, name: 'Client B Profile', phone: '777888999', email: 'client.b@test.com' }
-  });
-
-  const caseB1 = await prisma.case.create({
-    data: { tenantId: tenantB.id, clientId: clientProfileB.id, caseTitle: 'Corporate Dispute B', caseNumber: 'C-B-001', courtName: 'Civil Court', caseType: 'Corporate', oppositeParty: 'Tech Corp' }
-  });
-
-  await prisma.document.create({
-    data: { tenantId: tenantB.id, caseId: caseB1.id, uploadedById: advocateB.id, title: 'Contract Agreement', fileUrl: 'https://example.com/doc3.pdf', type: DocumentType.CONTRACT, isPrivate: false }
-  });
-
-  await prisma.invoice.create({
-    data: { tenantId: tenantB.id, clientId: clientProfileB.id, caseId: caseB1.id, invoiceNumber: 'INV-B-001', amount: 10000, totalAmount: 10000, status: InvoiceStatus.DRAFT }
-  });
-
-  console.log('✅ Fresh test data seeded successfully!');
+  console.log('✅ Database seeded successfully!');
 }
 
 main()

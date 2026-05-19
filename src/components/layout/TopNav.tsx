@@ -115,12 +115,12 @@ export default function TopNav({ onHamburgerClick }: TopNavProps) {
             </p>
             <span
               className={`inline-block mt-0.5 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                user?.role === 'ADMIN'
+                user?.role === 'SUPER_ADMIN' || user?.role === 'TENANT_ADMIN'
                   ? 'bg-blue-500/15 text-blue-500'
                   : 'bg-amber-500/15 text-amber-500'
               }`}
             >
-              {user?.role === 'ADMIN' ? 'Admin' : user?.role === 'DATA_ENTRY' ? 'Data Entry' : user?.role ?? ''}
+              {user?.role === 'SUPER_ADMIN' ? 'Super Admin' : user?.role === 'TENANT_ADMIN' ? 'Advocate' : user?.role === 'TENANT_USER' ? 'Munshi' : user?.role ?? ''}
             </span>
           </div>
         </div>

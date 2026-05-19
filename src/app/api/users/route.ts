@@ -29,7 +29,7 @@ export async function GET() {
       email:     true,
       name:      true,
       role:      true,
-      canCreate: true,
+      canAdd:    true,
       canEdit:   true,
       canDelete: true,
       createdAt: true,
@@ -38,9 +38,9 @@ export async function GET() {
   });
 
   // Map to legacy shape expected by the UI
-  const mapped = users.map((usr: typeof users[number]) => ({ 
+  const mapped = users.map((usr: any) => ({ 
     ...usr, 
-    can_create_cases: usr.canCreate,
+    can_create_cases: usr.canAdd,
     can_edit_cases: usr.canEdit,
     can_delete_cases: usr.canDelete
   }));
@@ -85,11 +85,11 @@ export async function POST(request: Request) {
         name:         name,
         role:         role as any,
         password:     hashPassword(password),
-        canCreate,
+        canAdd:       canCreate,
         canEdit,
         canDelete,
       },
-      select: { id: true, email: true, name: true, role: true, canCreate: true, canEdit: true, canDelete: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, canAdd: true, canEdit: true, canDelete: true, createdAt: true },
     });
 
     await writeAuditLog({
@@ -103,7 +103,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ 
       ...created, 
-      can_create_cases: created.canCreate,
+      can_create_cases: created.canAdd,
       can_edit_cases: created.canEdit,
       can_delete_cases: created.canDelete
     }, { status: 201 });
