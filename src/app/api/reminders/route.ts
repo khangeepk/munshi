@@ -1,18 +1,10 @@
-export const dynamic = 'force-dynamic';
-
-// ─── SQ Tech — Hearing Reminder Scheduler API ─────────────────────────────────
-// GET  /api/reminders          → list upcoming hearings within 7 days
-// POST /api/reminders          → run the reminder dispatch job (admin only)
-//
-// The scheduler checks for hearings 1, 3, and 7 days from today (Asia/Karachi)
-// and sends WhatsApp reminders to clients via wa.me deep links or direct API.
-
 import { NextResponse } from 'next/server';
 import type { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
-import { getAuthenticatedUser, isAdmin } from '@/lib/auth-server';
+import { withTenant, isAdmin } from '@/lib/auth-server';
 import { unauthorized } from '@/lib/http-errors';
 import { buildWhatsAppLink } from '@/lib/whatsapp';
+import { writeAuditLog } from '@/lib/audit';
 
 // Days before hearing to send reminders
 const REMINDER_DAYS = (process.env.REMINDER_DAYS_BEFORE ?? '1,3,7')
@@ -21,7 +13,6 @@ const REMINDER_DAYS = (process.env.REMINDER_DAYS_BEFORE ?? '1,3,7')
   .filter(d => !isNaN(d));
 
 function toKarachiDate(offsetDays: number): Date {
-  // Get "today" in Asia/Karachi (UTC+5)
   const now = new Date();
   const karachiOffset = 5 * 60; // minutes
   const localOffset = now.getTimezoneOffset();
@@ -75,8 +66,14 @@ const COURT_LABEL: Record<string, string> = {
 // ─── GET — List upcoming hearings ─────────────────────────────────────────────
 export async function GET() {
   try {
-    const u = await getAuthenticatedUser();
-    if (!u) return unauthorized();
+    let user, tenantId;
+    try {
+      const res = await withTenant();
+      user = res.user;
+      tenantId = res.tenantId;
+    } catch (e) {
+      return unauthorized();
+    }
 
     const now = new Date();
     now.setHours(0, 0, 0, 0);
@@ -84,38 +81,36 @@ export async function GET() {
     nextWeek.setDate(nextWeek.getDate() + 7);
 
     const where: Prisma.CaseWhereInput = {
-      OR: [
-        { hearing_date: { gte: now, lte: nextWeek } },
-        { nextHearingDate: { gte: now, lte: nextWeek } },
-      ],
-      case_status: { notIn: ['CLOSED'] },
+      nextHearingDate: { gte: now, lte: nextWeek },
+      status: { notIn: ['CLOSED', 'DISPOSED'] },
     };
-    if (!isAdmin(u.role)) where.lawyer_id = u.id;
+    if (tenantId) where.tenantId = tenantId;
+    if (!isAdmin(user.role)) where.assignedToId = user.id;
 
     const upcoming = await prisma.case.findMany({
       where,
       include: { client: true },
-      orderBy: { hearing_date: 'asc' },
+      orderBy: { nextHearingDate: 'asc' },
     });
 
     // Enrich with computed daysLeft and reminder messages
     const enriched = upcoming.map((c: any) => {
-      const hearingDate = c.hearing_date ?? c.nextHearingDate;
+      const hearingDate = c.nextHearingDate;
       const daysLeft = hearingDate
         ? Math.ceil((new Date(hearingDate).getTime() - Date.now()) / 86_400_000)
         : null;
-      const phone = c.client?.phone || c.clientPhone;
+      const phone = c.client?.phone;
       const waLink = phone && hearingDate
         ? buildWhatsAppLink(phone, buildReminderMessage({
-            clientName: c.client?.name || c.caseFrom || 'Client',
-            caseTitle: c.title,
+            clientName: c.client?.name || 'Client',
+            caseTitle: c.caseTitle,
             hearingDate: new Date(hearingDate),
-            court: COURT_LABEL[c.location] ?? c.location,
+            court: COURT_LABEL[c.courtName] ?? c.courtName,
             judge: c.judgeName,
             daysLeft: daysLeft!,
           }))
         : null;
-      return { ...c, daysLeft, waLink };
+      return { ...c, daysLeft, waLink, title: c.caseTitle, location: c.courtName };
     });
 
     return NextResponse.json({
@@ -133,9 +128,16 @@ export async function GET() {
 // ─── POST — Run the reminder dispatch job (admin only) ────────────────────────
 export async function POST(req: Request) {
   try {
-    const u = await getAuthenticatedUser();
-    if (!u) return unauthorized();
-    if (!isAdmin(u.role)) {
+    let user, tenantId;
+    try {
+      const res = await withTenant();
+      user = res.user;
+      tenantId = res.tenantId;
+    } catch (e) {
+      return unauthorized();
+    }
+    
+    if (!isAdmin(user.role)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
@@ -156,57 +158,63 @@ export async function POST(req: Request) {
       const targetDate = toKarachiDate(offsetDays);
       const nextDay = new Date(targetDate);
       nextDay.setDate(nextDay.getDate() + 1);
+      
+      const whereClause: Prisma.CaseWhereInput = {
+        nextHearingDate: { gte: targetDate, lt: nextDay },
+        status: { notIn: ['CLOSED', 'DISPOSED'] },
+      };
+      if (tenantId) whereClause.tenantId = tenantId;
 
       const cases = await prisma.case.findMany({
-        where: {
-          OR: [
-            { hearing_date: { gte: targetDate, lt: nextDay } },
-            { nextHearingDate: { gte: targetDate, lt: nextDay } },
-          ],
-          case_status: { notIn: ['CLOSED'] },
-        },
+        where: whereClause,
         include: { client: true },
       });
 
       for (const c of cases) {
-        const hearingDate = (c as any).hearing_date ?? (c as any).nextHearingDate;
-        const phone = c.client?.phone || (c as any).clientPhone || null;
-        const clientName = c.client?.name || (c as any).caseFrom || 'Client';
-        const court = COURT_LABEL[(c as any).location] ?? (c as any).location;
-        const judge = (c as any).judgeName ?? null;
+        const hearingDate = c.nextHearingDate;
+        const phone = c.client?.phone || null;
+        const clientName = c.client?.name || 'Client';
+        const court = COURT_LABEL[c.courtName] ?? c.courtName;
+        const judge = c.judgeName ?? null;
 
         if (!phone) {
-          results.push({ caseId: c.id, caseTitle: c.title, clientName, phone: null, daysLeft: offsetDays, waLink: null, status: 'NO_PHONE' });
+          results.push({ caseId: c.id, caseTitle: c.caseTitle, clientName, phone: null, daysLeft: offsetDays, waLink: null, status: 'NO_PHONE' });
           continue;
         }
 
         const message = buildReminderMessage({
-          clientName, caseTitle: c.title,
-          hearingDate: new Date(hearingDate),
+          clientName, caseTitle: c.caseTitle,
+          hearingDate: new Date(hearingDate!),
           court, judge, daysLeft: offsetDays,
         });
 
         const waLink = buildWhatsAppLink(phone, message);
 
-        if (!dryRun) {
-          // Persist to WhatsApp queue
-          try {
-            await prisma.whatsappQueue.create({
-              data: {
-                phone,
-                message,
-                caseId: c.id,
-                caseTitle: c.title,
-                waLink,
-                status: 'PENDING',
-              },
-            });
-          } catch { /* ignore if DB write fails */ }
-        }
+          if (!dryRun) {
+            // Store notification in SaaS schema
+            try {
+              const notif = await prisma.notification.create({
+                data: {
+                  tenantId: tenantId!,
+                  type: 'WHATSAPP',
+                  title: `Hearing Reminder for ${c.caseTitle}`,
+                  message: message,
+                },
+              });
+
+              await writeAuditLog({
+                tenantId: tenantId!,
+                userId: user.id,
+                action: 'CREATE',
+                entityType: 'Notification',
+                entityId: notif.id,
+              });
+            } catch { /* ignore if DB write fails */ }
+          }
 
         results.push({
           caseId: c.id,
-          caseTitle: c.title,
+          caseTitle: c.caseTitle,
           clientName,
           phone,
           daysLeft: offsetDays,
@@ -224,7 +232,7 @@ export async function POST(req: Request) {
       reminderDays: REMINDER_DAYS,
       message: dryRun
         ? 'Dry run complete — no messages queued'
-        : `${results.filter(r => r.status === 'SENT').length} reminder(s) queued in WhatsApp queue`,
+        : `${results.filter(r => r.status === 'SENT').length} reminder(s) queued`,
     });
   } catch (error) {
     console.error('[POST /api/reminders]', error);

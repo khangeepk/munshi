@@ -4,14 +4,19 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getAuthenticatedUser } from '@/lib/auth-server';
+import { withTenant } from '@/lib/auth-server';
 import { unauthorized } from '@/lib/http-errors';
 
 // GET /api/conflict?query=xxx  — conflict of interest search
 export async function GET(request: Request) {
   try {
-    const u = await getAuthenticatedUser();
-    if (!u) return unauthorized();
+    let tenantId;
+    try {
+      const res = await withTenant();
+      tenantId = res.tenantId;
+    } catch (e) {
+      return unauthorized();
+    }
 
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('query')?.trim();
@@ -20,41 +25,47 @@ export async function GET(request: Request) {
       return NextResponse.json({ results: [], message: 'Query too short' });
     }
 
+    const clientWhere: any = {
+      OR: [
+        { name: { contains: query, mode: 'insensitive' } },
+        { cnic: { contains: query } },
+        { email: { contains: query, mode: 'insensitive' } },
+      ],
+    };
+    if (tenantId) clientWhere.tenantId = tenantId;
+
     // Search clients by name or CNIC
     const clients = await prisma.client.findMany({
-      where: {
-        OR: [
-          { name: { contains: query, mode: 'insensitive' } },
-          { cnic_number: { contains: query } },
-          { email: { contains: query, mode: 'insensitive' } },
-        ],
-      },
+      where: clientWhere,
       include: {
         cases: {
           select: {
             id: true,
-            title: true,
-            case_status: true,
-            caseAgainst: true,
-            caseFrom: true,
-            lawyer: { select: { full_name: true } },
+            caseTitle: true,
+            status: true,
+            oppositeParty: true,
+            client: { select: { name: true } },
+            assignedTo: { select: { name: true } },
           },
         },
       },
     });
 
+    const caseWhere: any = {
+      OR: [
+        { oppositeParty: { contains: query, mode: 'insensitive' } },
+        { client: { name: { contains: query, mode: 'insensitive' } } },
+        { caseTitle: { contains: query, mode: 'insensitive' } },
+      ],
+    };
+    if (tenantId) caseWhere.tenantId = tenantId;
+
     // Also search cases where the query appears as opposing party
     const opposingCases = await prisma.case.findMany({
-      where: {
-        OR: [
-          { caseAgainst: { contains: query, mode: 'insensitive' } },
-          { caseFrom: { contains: query, mode: 'insensitive' } },
-          { title: { contains: query, mode: 'insensitive' } },
-        ],
-      },
+      where: caseWhere,
       include: {
-        client: { select: { name: true, cnic_number: true } },
-        lawyer: { select: { full_name: true } },
+        client: { select: { name: true, cnic: true } },
+        assignedTo: { select: { name: true } },
       },
     });
 

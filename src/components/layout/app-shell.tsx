@@ -7,7 +7,8 @@ import { useAuth } from '@/contexts/auth-context';
 import Sidebar from '@/components/layout/Sidebar';
 import TopNav from '@/components/layout/TopNav';
 
-const PUBLIC_ROUTE = /^\/login$/;
+const PUBLIC_ROUTE  = /^\/login$/;
+const BYPASS_ROUTE  = /^\/client(\/?)/; // Client portal has its own shell
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -15,7 +16,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const publicRoute = PUBLIC_ROUTE.test(pathname ?? '');
+  const publicRoute = PUBLIC_ROUTE.test(pathname ?? '') || BYPASS_ROUTE.test(pathname ?? '');
 
   // Close sidebar on route change
   useEffect(() => { setSidebarOpen(false); }, [pathname]);

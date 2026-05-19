@@ -2,21 +2,30 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getAuthenticatedUser } from '@/lib/auth-server';
+import { withTenant } from '@/lib/auth-server';
 import { unauthorized } from '@/lib/http-errors';
 
 export async function GET() {
   try {
-    const user = await getAuthenticatedUser();
-    if (!user) return unauthorized();
+    let tenantId;
+    try {
+      const res = await withTenant();
+      tenantId = res.tenantId;
+    } catch (e) {
+      return unauthorized();
+    }
+
+    const whereClause: any = {};
+    if (tenantId) whereClause.tenantId = tenantId;
 
     const documents = await prisma.document.findMany({
-      orderBy: { upload_date: 'desc' },
+      where: whereClause,
+      orderBy: { createdAt: 'desc' },
       include: {
         case: {
           select: {
-            title: true,
-            lawyer: {
+            caseTitle: true,
+            assignedTo: {
               select: { role: true }
             }
           }
@@ -24,7 +33,16 @@ export async function GET() {
       }
     });
 
-    return NextResponse.json(documents);
+    const mapped = documents.map((d: any) => ({
+      ...d,
+      upload_date: d.createdAt,
+      case: d.case ? {
+        title: d.case.caseTitle,
+        lawyer: d.case.assignedTo ? { role: d.case.assignedTo.role } : null
+      } : null
+    }));
+
+    return NextResponse.json(mapped);
   } catch (error) {
     console.error('[GET /api/documents]', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

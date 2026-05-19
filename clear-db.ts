@@ -1,10 +1,10 @@
 import prisma from './src/lib/prisma';
 
 async function main() {
-  await prisma.activity.deleteMany({});
+  await prisma.auditLog.deleteMany({});
   await prisma.document.deleteMany({});
   await prisma.case.deleteMany({});
-  await prisma.profile.deleteMany({});
+  await prisma.user.deleteMany({});
   console.log('Database cleared.');
 }
 

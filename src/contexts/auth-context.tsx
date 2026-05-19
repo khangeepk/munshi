@@ -9,7 +9,18 @@ import {
   type ReactNode,
 } from 'react';
 
-export type AppRole = 'ADMIN' | 'DATA_ENTRY' | 'LAWYER' | 'PARALEGAL';
+export type AppRole =
+  | 'ADMIN'
+  | 'DATA_ENTRY'
+  | 'LAWYER'
+  | 'PARALEGAL'
+  | 'SUPER_ADMIN'
+  | 'TENANT_ADMIN'
+  | 'ADVOCATE'
+  | 'JUNIOR_LAWYER'
+  | 'CLERK'
+  | 'ACCOUNTANT'
+  | 'CLIENT';
 
 export interface AppUser {
   id: string;
@@ -17,6 +28,7 @@ export interface AppUser {
   name: string;
   role: AppRole;
   avatarUrl?: string | null;
+  tenantId?: string | null;
 }
 
 interface AuthCtx {

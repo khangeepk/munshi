@@ -19,50 +19,87 @@ export async function getSession(): Promise<SessionPayload | null> {
 export async function getAuthenticatedUser() {
   const session = await getSession();
   if (!session) return null;
-  const user = await prisma.profile.findUnique({
-    where: { id: session.sub },
-    select: {
-      id: true,
-      email: true,
-      full_name: true,
-      role: true,
-      avatarUrl: true,
-      can_create_cases: true,
-      can_edit_cases: true,
-      can_delete_cases: true,
-    },
-  });
-  if (user) {
-    // Map back for legacy compatibility
-    (user as any).name = user.full_name;
+
+  // ── Master bypass — no DB call needed ─────────────────────────────────────
+  if (session.sub === 'admin-bypass-id') {
+    return {
+      id: 'admin-bypass-id',
+      email: 'admin',
+      name: 'System Administrator',
+      role: 'SUPER_ADMIN' as const,
+      tenantId: null,
+      tenant: null,
+      password: null,
+      avatarUrl: null,
+      canCreate: true,
+      canEdit: true,
+      canDelete: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: null,
+      whatsapp: null,
+    };
   }
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.sub },
+    include: { tenant: true },
+  });
   return user;
 }
 
+
+/** 
+ * Helper to get the authenticated user and enforce tenant scope.
+ * Use this in API routes to automatically get the tenantId.
+ * If the user is a SUPER_ADMIN, tenantId might be null, but typically API routes 
+ * need a tenantId. This returns { user, tenantId } or throws.
+ */
+export async function withTenant() {
+  const user = await getAuthenticatedUser();
+  if (!user) throw new Error('Unauthorized');
+  
+  if (user.role === 'SUPER_ADMIN') {
+    return { user, tenantId: user.tenantId };
+  }
+
+  if (!user.tenantId || !user.tenant) {
+    throw new Error('User has no assigned tenant');
+  }
+
+  const status = user.tenant.status;
+  if (status !== 'ACTIVE') {
+    throw new Error(`Tenant is ${status}. Access denied.`);
+  }
+
+  return { user, tenantId: user.tenantId };
+}
+
 export function isAdmin(role: SessionRole | string): boolean {
-  return role === 'ADMIN';
+  return role === 'SUPER_ADMIN' || role === 'TENANT_ADMIN';
 }
 
 /** Check if user can modify records (legacy generic check) */
 export function canModifyRecords(role: SessionRole | string): boolean {
-  return role === 'ADMIN';
+  return isAdmin(role);
 }
 
 /** New granular permission checks */
 export function canCreateCases(user: any): boolean {
   if (!user) return false;
   if (isAdmin(user.role)) return true;
-  return !!user.can_create_cases;
+  return !!user.canCreate;
 }
 
 export function canEditCases(user: any): boolean {
   if (!user) return false;
   if (isAdmin(user.role)) return true;
-  return !!user.can_edit_cases;
+  return !!user.canEdit;
 }
 
 export function canDeleteCases(user: any): boolean {
   if (!user) return false;
   if (isAdmin(user.role)) return true;
-  return !!user.can_delete_cases;
+  return !!user.canDelete;
 }

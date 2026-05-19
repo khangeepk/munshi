@@ -2,13 +2,19 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getAuthenticatedUser } from '@/lib/auth-server';
+import { withTenant } from '@/lib/auth-server';
 import { unauthorized } from '@/lib/http-errors';
 import { attachSessionCookie } from '@/lib/session-response';
 
 export async function PATCH(request: Request) {
   try {
-    const sessionUser = await getAuthenticatedUser();
+    let sessionUser;
+    try {
+      const res = await withTenant();
+      sessionUser = res.user;
+    } catch (e) {
+      return unauthorized();
+    }
     if (!sessionUser) return unauthorized();
 
     const body = await request.json();
@@ -17,13 +23,13 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Valid display name required' }, { status: 400 });
     }
 
-    const updated = await prisma.profile.update({
+    const updated = await prisma.user.update({
       where: { id: sessionUser.id },
-      data: { full_name: name },
-      select: { id: true, email: true, full_name: true, role: true, avatarUrl: true },
+      data: { name: name },
+      select: { id: true, email: true, name: true, role: true, tenantId: true },
     });
 
-    const mappedUser = { ...updated, name: updated.full_name };
+    const mappedUser = { ...updated, avatarUrl: null }; // avatarUrl was dropped from schema
     const res = NextResponse.json({ user: mappedUser }, { status: 200 });
     return attachSessionCookie(res, mappedUser);
   } catch (e) {

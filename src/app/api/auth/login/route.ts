@@ -25,7 +25,8 @@ export async function POST(request: Request) {
           id: 'admin-bypass-id',
           email: 'Admin',
           name: 'System Administrator',
-          role: 'ADMIN',
+          role: 'SUPER_ADMIN',
+          tenantId: null,
         })
       );
       const res = NextResponse.json({
@@ -33,7 +34,8 @@ export async function POST(request: Request) {
           id: 'admin-bypass-id',
           email: 'Admin',
           name: 'System Administrator',
-          role: 'ADMIN',
+          role: 'SUPER_ADMIN',
+          tenantId: null,
           avatarUrl: null,
         },
       });
@@ -54,7 +56,7 @@ export async function POST(request: Request) {
 
     let user;
     try {
-      user = await prisma.profile.findUnique({ where: { email: userId } });
+      user = await prisma.user.findUnique({ where: { email: userId } });
     } catch (dbError) {
       console.error('[LOGIN] DB unreachable:', dbError);
       return NextResponse.json(
@@ -63,7 +65,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!user?.passwordHash || !verifyPassword(password, user.passwordHash)) {
+    if (!user?.password || !verifyPassword(password, user.password)) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
@@ -71,8 +73,9 @@ export async function POST(request: Request) {
       buildSessionPayload({
         id: user.id,
         email: user.email,
-        name: user.full_name,
+        name: user.name,
         role: user.role as SessionRole,
+        tenantId: user.tenantId,
       }),
     );
 
@@ -80,9 +83,10 @@ export async function POST(request: Request) {
       user: {
         id: user.id,
         email: user.email,
-        name: user.full_name,
+        name: user.name,
         role: user.role,
-        avatarUrl: user.avatarUrl,
+        tenantId: user.tenantId,
+        avatarUrl: null, // Note: avatarUrl was removed from User model, adapt if added back
       },
     });
     res.cookies.set(SESSION_COOKIE, token, {

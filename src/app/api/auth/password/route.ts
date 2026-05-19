@@ -21,17 +21,17 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'New password must be at least 8 characters' }, { status: 400 });
     }
 
-    const full = await prisma.profile.findUnique({ where: { id: sessionUser.id } });
-    if (!full?.passwordHash) {
+    const full = await prisma.user.findUnique({ where: { id: sessionUser.id } });
+    if (!full?.password) {
       return NextResponse.json({ error: 'Password not set for this account' }, { status: 400 });
     }
-    if (!verifyPassword(currentPassword, full.passwordHash)) {
+    if (!verifyPassword(currentPassword, full.password)) {
       return NextResponse.json({ error: 'Current password is incorrect' }, { status: 401 });
     }
 
-    await prisma.profile.update({
+    await prisma.user.update({
       where: { id: full.id },
-      data: { passwordHash: hashPassword(newPassword) },
+      data: { password: hashPassword(newPassword) },
     });
 
     return NextResponse.json({ ok: true }, { status: 200 });

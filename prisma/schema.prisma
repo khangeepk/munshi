@@ -4,219 +4,622 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-// ─── SQ Tech — Lawyer Management System ─────────────────────────────────────
+// ==================================================
+// ENUMS
+// ==================================================
 
-model Profile {
-  id            String   @id @default(uuid())
-  full_name     String
-  role          String   @default("LAWYER")
-  law_firm_name String?
-  email         String   @unique
-  passwordHash  String?
-  avatarUrl     String?
-  can_create_cases Boolean @default(false)
-  can_edit_cases   Boolean @default(false)
-  can_delete_cases Boolean @default(false)
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
+enum UserRole {
+  SUPER_ADMIN
+  TENANT_ADMIN
+  ADVOCATE
+  JUNIOR_LAWYER
+  CLERK
+  ACCOUNTANT
+  CLIENT
+}
 
-  cases              Case[]               @relation("CaseLawyer")
-  activities         Activity[]
-  billableHours      BillableHour[]
-  commissions        AssociateCommission[]
+enum TenantStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  ARCHIVED
+}
 
-  @@map("profiles")
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+}
+
+enum SubscriptionPlanType {
+  MONTHLY
+  YEARLY
+  LIFETIME
+}
+
+enum CaseStatus {
+  PRE_LITIGATION
+  FILED
+  ONGOING
+  STAYED
+  DISPOSED
+  APPEALED
+  CLOSED
+}
+
+enum CasePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum HearingStatus {
+  SCHEDULED
+  ADJOURNED
+  HEARD
+  CANCELLED
+}
+
+enum DocumentType {
+  LEGAL_BRIEF
+  EVIDENCE
+  COURT_ORDER
+  CONTRACT
+  ID_PROOF
+  INVOICE
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum NotificationType {
+  EMAIL
+  SMS
+  WHATSAPP
+  IN_APP
+}
+
+enum ReminderStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum ReminderChannel {
+  IN_APP
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// ==================================================
+// CORE MODELS
+// ==================================================
+
+model Tenant {
+  id       String       @id @default(uuid())
+  name     String
+  slug     String       @unique
+  email    String       @unique
+  phone    String?
+  address  String?
+  city     String?
+  province String?
+  logoUrl  String?
+  status   TenantStatus @default(ACTIVE)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  users         User[]
+  clients       Client[]
+  cases         Case[]
+  hearings      Hearing[]
+  documents     Document[]
+  tasks         Task[]
+  invoices      Invoice[]
+  payments      Payment[]
+  subscriptions    Subscription[]
+  auditLogs        AuditLog[]
+  notifications    Notification[]
+  settings         TenantSetting?
+  hearingReminders HearingReminder[]
+
+  @@index([slug])
+  @@index([email])
+  @@index([status])
+  @@map("tenants")
+}
+
+model User {
+  id          String    @id @default(uuid())
+  tenantId    String? // Nullable for SUPER_ADMIN
+  authUserId  String?   @unique // Link to Supabase Auth if used
+  name        String
+  email       String    @unique
+  phone       String?
+  password    String? // If using local auth instead of Supabase
+  role        UserRole  @default(ADVOCATE)
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+
+  // Granular RBAC fallback from existing architecture
+  canCreate Boolean @default(false)
+  canEdit   Boolean @default(false)
+  canDelete Boolean @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  tenant        Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clientProfile Client? @relation("UserClient")
+
+  // Created/Assigned relations
+  assignedCases    Case[]     @relation("CaseAssignedTo")
+  createdHearings  Hearing[]  @relation("HearingCreatedBy")
+  uploadedDocs     Document[] @relation("DocumentUploadedBy")
+  assignedTasks    Task[]     @relation("TaskAssignedTo")
+  createdTasks     Task[]     @relation("TaskCreatedBy")
+  auditLogs        AuditLog[]
+  messagesSent     Message[]  @relation("MessageSender")
+  messagesReceived Message[]  @relation("MessageReceiver")
+
+  @@index([tenantId])
+  @@index([role])
+  @@index([email])
+  @@index([authUserId])
+  @@map("users")
 }
 
 model Client {
-  id             String   @id @default(uuid())
-  name           String
-  email          String?
-  phone          String?
-  cnic_number    String?
-  address        String?
-  // KYC fields
-  cnic_doc_url   String?
-  date_of_birth  DateTime?
-  occupation     String?
-  notes          String?
-  comm_log       Json?    @default("[]")
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
+  id         String  @id @default(uuid())
+  tenantId   String
+  userId     String? @unique // Optional link to User for Client Portal
+  name       String
+  fatherName String?
+  cnic       String?
+  phone      String
+  whatsapp   String?
+  email      String?
+  address    String?
+  city       String?
+  notes      String?
 
-  cases          Case[]
-  trustAccounts  TrustAccount[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation("UserClient", fields: [userId], references: [id], onDelete: SetNull)
+
+  cases            Case[]
+  documents        Document[]
+  invoices         Invoice[]
+  payments         Payment[]
+  Message          Message[]
+  hearingReminders HearingReminder[]
+
+  @@index([tenantId])
+  @@index([phone])
+  @@index([cnic])
+  @@index([email])
   @@map("clients")
 }
 
 model Case {
-  id             String    @id @default(uuid())
-  title          String
-  client_id      String
-  client         Client    @relation(fields: [client_id], references: [id])
+  id              String       @id @default(uuid())
+  tenantId        String
+  clientId        String
+  assignedToId    String?
+  caseTitle       String
+  caseNumber      String
+  firNumber       String?
+  courtName       String
+  judgeName       String?
+  caseType        String
+  status          CaseStatus   @default(PRE_LITIGATION)
+  priority        CasePriority @default(MEDIUM)
+  filingDate      DateTime?
+  nextHearingDate DateTime?
+  oppositeParty   String
+  oppositeCounsel String?
+  policeStation   String?
+  legalSections   String?
+  description     String?
+  internalNotes   String?
 
-  lawyer_id      String?
-  lawyer         Profile?  @relation("CaseLawyer", fields: [lawyer_id], references: [id])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  closedAt  DateTime?
+  deletedAt DateTime?
 
-  court_name     String
-  case_status    String    @default("FILED")
-  hearing_date   DateTime?
-  created_at     DateTime  @default(now())
-  updated_at     DateTime  @updatedAt
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client     Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  assignedTo User?  @relation("CaseAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
 
-  // Legacy UI-compat fields
-  caseType          String    @default("Civil")
-  caseAgainst       String    @default("Unknown")
-  caseFrom          String?
-  clientPhone       String?
-  submissionDate    DateTime  @default(now())
-  firNumber         String?
-  location          String    @default("ISLAMABAD")
-  judgeName         String?
-  totalFee          Float?
-  pendingFeeDueDate DateTime?
-  nextHearingDate   DateTime?
-  decision          String?
-  remarks           String?
+  hearings         Hearing[]
+  documents        Document[]
+  tasks            Task[]
+  invoices         Invoice[]
+  payments         Payment[]
+  messages         Message[]
+  hearingReminders HearingReminder[]
 
-  billings      Billing[]
-  documents     Document[]
-  history       Activity[]
-  billableHours BillableHour[]
-  commissions   AssociateCommission[]
-
+  @@unique([tenantId, caseNumber])
+  @@index([tenantId])
+  @@index([clientId])
+  @@index([status])
+  @@index([nextHearingDate])
+  @@index([caseNumber])
   @@map("cases")
 }
 
-model Billing {
-  id          String   @id @default(uuid())
-  case_id     String
-  case        Case     @relation(fields: [case_id], references: [id], onDelete: Cascade)
-  amount      Float
-  status      String   @default("unpaid")
-  invoice_url String?
-  created_at  DateTime @default(now())
-  method      String   @default("Cash")
-  date        DateTime @default(now())
-  slipUrl     String?
+model Hearing {
+  id              String        @id @default(uuid())
+  tenantId        String
+  caseId          String
+  hearingDate     DateTime
+  hearingTime     String?
+  courtName       String
+  purpose         String
+  status          HearingStatus @default(SCHEDULED)
+  remarks         String?
+  nextHearingDate DateTime?
+  orderSummary    String?
+  createdById     String
 
-  @@map("billings")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  case             Case              @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  createdBy        User              @relation("HearingCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  hearingReminders HearingReminder[]
+
+  @@index([tenantId])
+  @@index([caseId])
+  @@index([hearingDate])
+  @@index([status])
+  @@map("hearings")
 }
 
 model Document {
-  id          String   @id @default(uuid())
-  case_id     String
-  case        Case     @relation(fields: [case_id], references: [id], onDelete: Cascade)
-  file_path   String
-  upload_date DateTime @default(now())
-  title       String   @default("Document")
-  category    String   @default("MISC")
+  id           String       @id @default(uuid())
+  tenantId     String
+  caseId       String?
+  clientId     String?
+  uploadedById String
+  title        String
+  type         DocumentType @default(OTHER)
+  fileUrl      String
+  fileKey      String?
+  mimeType     String?
+  size         Int?
+  isPrivate    Boolean      @default(true)
 
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  tenant     Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  case       Case?   @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  client     Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  uploadedBy User    @relation("DocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([caseId])
+  @@index([clientId])
+  @@index([type])
   @@map("documents")
 }
 
-model Activity {
-  id          String   @id @default(uuid())
-  title       String
-  description String?
-  date        DateTime @default(now())
-  caseId      String
-  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  userId      String
-  user        Profile  @relation(fields: [userId], references: [id])
-  createdAt   DateTime @default(now())
+model Task {
+  id           String       @id @default(uuid())
+  tenantId     String
+  caseId       String?
+  assignedToId String?
+  createdById  String
+  title        String
+  description  String?
+  status       TaskStatus   @default(TODO)
+  priority     TaskPriority @default(MEDIUM)
+  dueDate      DateTime?
+  completedAt  DateTime?
 
-  @@map("activities")
-}
-
-// ─── NEW: Billable Hours Tracker ─────────────────────────────────────────────
-model BillableHour {
-  id          String    @id @default(uuid())
-  case_id     String
-  case        Case      @relation(fields: [case_id], references: [id], onDelete: Cascade)
-  lawyer_id   String
-  lawyer      Profile   @relation(fields: [lawyer_id], references: [id])
-  start_time  DateTime
-  end_time    DateTime?
-  duration_mins Int?
-  hourly_rate Float     @default(5000)
-  notes       String?
-  is_billed   Boolean   @default(false)
-  created_at  DateTime  @default(now())
-
-  @@map("billable_hours")
-}
-
-// ─── NEW: IOLTA Trust Accounting ─────────────────────────────────────────────
-model TrustAccount {
-  id          String             @id @default(uuid())
-  client_id   String
-  client      Client             @relation(fields: [client_id], references: [id])
-  balance     Float              @default(0)
-  currency    String             @default("PKR")
-  created_at  DateTime           @default(now())
-  updated_at  DateTime           @updatedAt
-
-  transactions TrustTransaction[]
-
-  @@map("trust_accounts")
-}
-
-model TrustTransaction {
-  id               String       @id @default(uuid())
-  trust_account_id String
-  trust_account    TrustAccount @relation(fields: [trust_account_id], references: [id], onDelete: Cascade)
-  type             String       // DEPOSIT | WITHDRAWAL | TRANSFER
-  amount           Float
-  description      String?
-  reference_no     String?
-  created_at       DateTime     @default(now())
-
-  @@map("trust_transactions")
-}
-
-// ─── NEW: Associate Commission ────────────────────────────────────────────────
-model AssociateCommission {
-  id              String   @id @default(uuid())
-  case_id         String
-  case            Case     @relation(fields: [case_id], references: [id], onDelete: Cascade)
-  associate_id    String
-  associate       Profile  @relation(fields: [associate_id], references: [id])
-  milestone       String   // e.g. "HEARING_COMPLETED", "CASE_CLOSED", "PAYMENT_RECEIVED"
-  commission_pct  Float    @default(10)
-  base_amount     Float
-  commission_amt  Float
-  status          String   @default("PENDING") // PENDING | APPROVED | PAID
-  paid_at         DateTime?
-  notes           String?
-  created_at      DateTime @default(now())
-
-  @@map("associate_commissions")
-}
-
-// ─── SQ Tech — WhatsApp Notification Queue ────────────────────────────────────
-// Persists every outbound notification intent so messages are never silently
-// lost when the WhatsApp client is offline or running in serverless mode.
-// status: PENDING → message queued, SENT → delivered, FAILED → error, CANCELLED
-model WhatsappQueue {
-  id        String    @id @default(uuid())
-  phone     String
-  message   String
-  caseId    String?
-  caseTitle String?
-  status    String    @default("PENDING") // PENDING | SENT | FAILED | CANCELLED
-  waLink    String?
-  error     String?
-  sentAt    DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
-  @@map("whatsapp_queue")
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  case       Case?  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  assignedTo User?  @relation("TaskAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy  User   @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([assignedToId])
+  @@index([caseId])
+  @@index([dueDate])
+  @@index([status])
+  @@map("tasks")
 }
 
+model Invoice {
+  id            String        @id @default(uuid())
+  tenantId      String
+  clientId      String
+  caseId        String?
+  invoiceNumber String
+  amount        Float
+  discount      Float         @default(0)
+  tax           Float         @default(0)
+  totalAmount   Float
+  paidAmount    Float         @default(0)
+  status        InvoiceStatus @default(DRAFT)
+  dueDate       DateTime?
 
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  case   Case?  @relation(fields: [caseId], references: [id], onDelete: SetNull)
+
+  payments Payment[]
+
+  @@unique([tenantId, invoiceNumber])
+  @@index([tenantId])
+  @@index([clientId])
+  @@index([caseId])
+  @@index([status])
+  @@map("invoices")
+}
+
+model Payment {
+  id        String        @id @default(uuid())
+  tenantId  String
+  clientId  String
+  caseId    String?
+  invoiceId String?
+  amount    Float
+  method    String
+  reference String?
+  status    PaymentStatus @default(PENDING)
+  paidAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client  Client   @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  case    Case?    @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([clientId])
+  @@index([caseId])
+  @@index([status])
+  @@map("payments")
+}
+
+model Plan {
+  id                         String               @id @default(uuid())
+  name                       String
+  type                       SubscriptionPlanType @default(MONTHLY)
+  priceMonthly               Float
+  priceYearly                Float
+  maxUsers                   Int
+  maxCases                   Int
+  maxClients                 Int
+  maxStorageGB               Int
+  allowClientPortal          Boolean              @default(false)
+  allowWhatsAppNotifications Boolean              @default(false)
+  allowAdvancedReports       Boolean              @default(false)
+  allowCustomBranding        Boolean              @default(false)
+  allowAI                    Boolean              @default(false)
+  isActive                   Boolean              @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                   String             @id @default(uuid())
+  tenantId             String
+  planId               String
+  status               SubscriptionStatus @default(TRIAL)
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean            @default(false)
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan   Plan   @relation(fields: [planId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model AuditLog {
+  id        String  @id @default(uuid())
+  tenantId  String
+  userId    String?
+  action    String
+  entity    String
+  entityId  String
+  details   Json?
+  ipAddress String?
+
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id       String           @id @default(uuid())
+  tenantId String
+  type     NotificationType @default(IN_APP)
+  title    String
+  message  String
+  isRead   Boolean          @default(false)
+  readAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+model Message {
+  id         String  @id @default(uuid())
+  caseId     String?
+  clientId   String?
+  senderId   String
+  receiverId String
+  content    String
+  isRead     Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  case     Case?   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  sender   User    @relation("MessageSender", fields: [senderId], references: [id], onDelete: Restrict)
+  receiver User    @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Restrict)
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([caseId])
+  @@map("messages")
+}
+
+model HearingReminder {
+  id            String          @id @default(uuid())
+  tenantId      String
+  clientId      String?
+  caseId        String?
+  hearingId     String?
+  scheduledFor  DateTime
+  channel       ReminderChannel @default(IN_APP)
+  status        ReminderStatus  @default(PENDING)
+  message       String
+  sentAt        DateTime?
+  failedAt      DateTime?
+  failureReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client  Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  case    Case?    @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  hearing Hearing? @relation(fields: [hearingId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([scheduledFor])
+  @@index([hearingId])
+  @@map("hearing_reminders")
+}
+
+model Court {
+  id   String @id @default(uuid())
+  name String
+  city String
+  type String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("courts")
+}
+
+model CaseType {
+  id   String @id @default(uuid())
+  name String @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("case_types")
+}
+
+model TenantSetting {
+  id                  String  @id @default(uuid())
+  tenantId            String  @unique
+  themeColor          String?
+  timezone            String  @default("Asia/Karachi")
+  currency            String  @default("PKR")
+  invoicePrefix       String  @default("INV-")
+  whatsappEnabled     Boolean @default(false)
+  whatsappPhoneNumber String?
+  smsEnabled          Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_settings")
+}

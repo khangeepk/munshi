@@ -8,7 +8,7 @@ import {
 
 export function attachSessionCookie(
   response: NextResponse,
-  user: { id: string; email: string; name: string; role: string },
+  user: { id: string; email: string; name: string; role: string; tenantId: string | null },
 ) {
   const token = signSessionPayload(
     buildSessionPayload({
@@ -16,6 +16,7 @@ export function attachSessionCookie(
       email: user.email,
       name: user.name,
       role: user.role as SessionRole,
+      tenantId: user.tenantId,
     }),
   );
   response.cookies.set(SESSION_COOKIE, token, {

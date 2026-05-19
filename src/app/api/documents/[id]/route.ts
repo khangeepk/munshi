@@ -2,26 +2,49 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getAuthenticatedUser, canModifyRecords } from '@/lib/auth-server';
+import { withTenant, isAdmin } from '@/lib/auth-server';
 import { forbidden, unauthorized } from '@/lib/http-errors';
+import { writeAuditLog } from '@/lib/audit';
 
 export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const u = await getAuthenticatedUser();
-    if (!u) return unauthorized();
-    if (!canModifyRecords(u.role)) return forbidden();
+    let user, tenantId;
+    try {
+      const res = await withTenant();
+      user = res.user;
+      tenantId = res.tenantId;
+    } catch (e) {
+      return unauthorized();
+    }
+    
+    if (!isAdmin(user.role)) return forbidden();
 
     const { id } = await context.params;
 
-    const target = await prisma.document.findUnique({ where: { id } });
+    const whereClause: any = { id, deletedAt: null };
+    if (tenantId) whereClause.tenantId = tenantId;
+
+    const target = await prisma.document.findFirst({ where: whereClause });
     if (!target) {
       return NextResponse.json({ error: 'Document not found' }, { status: 404 });
     }
 
-    await prisma.document.delete({ where: { id } });
+    const result = await prisma.document.updateMany({ where: whereClause, data: { deletedAt: new Date() } });
+    if (result.count === 0) {
+      return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+    }
+
+    await writeAuditLog({
+      tenantId: tenantId!,
+      userId: user.id,
+      action: 'DELETE',
+      entityType: 'Document',
+      entityId: id,
+    });
+
     return NextResponse.json({ ok: true }, { status: 200 });
   } catch (e) {
     console.error('[DELETE /api/documents/[id]]', e);

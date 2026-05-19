@@ -37,6 +37,7 @@ export function verifySessionToken(token: string): SessionPayload | null {
     || typeof p.name !== 'string'
     || typeof p.role !== 'string'
     || typeof p.exp !== 'number'
+    || (p.tenantId !== null && typeof p.tenantId !== 'string' && typeof p.tenantId !== 'undefined')
   )
     return null;
   if (Date.now() > p.exp) return null;
@@ -45,17 +46,19 @@ export function verifySessionToken(token: string): SessionPayload | null {
     email: p.email,
     name: p.name,
     role: p.role as SessionPayload['role'],
+    tenantId: p.tenantId ?? null,
     exp: p.exp,
   };
 }
 
-export type SessionRole = 'ADMIN' | 'DATA_ENTRY' | 'LAWYER' | 'PARALEGAL';
+export type SessionRole = 'SUPER_ADMIN' | 'TENANT_ADMIN' | 'ADVOCATE' | 'JUNIOR_LAWYER' | 'CLERK' | 'ACCOUNTANT' | 'CLIENT';
 
 export interface SessionPayload {
   sub: string;
   email: string;
   name: string;
   role: SessionRole;
+  tenantId: string | null;
   exp: number;
 }
 
@@ -63,13 +66,15 @@ export function buildSessionPayload(user: {
   id: string;
   email: string;
   name: string;
-  role: SessionRole;
+  role: SessionRole | string;
+  tenantId: string | null;
 }): SessionPayload {
   return {
     sub: user.id,
     email: user.email,
     name: user.name,
-    role: user.role,
+    role: user.role as SessionRole,
+    tenantId: user.tenantId,
     exp: Date.now() + MAX_AGE_MS,
   };
 }

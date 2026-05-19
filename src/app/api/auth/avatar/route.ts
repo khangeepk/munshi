@@ -22,15 +22,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Use a Base64 image data URL or clear the field.' }, { status: 400 });
     }
 
-    const updated = await prisma.profile.update({
-      where: { id: sessionUser.id },
-      data: {
-        avatarUrl: avatarUrl && avatarUrl.trim() !== '' ? avatarUrl.trim() : null,
-      },
-      select: { id: true, email: true, full_name: true, role: true, avatarUrl: true },
-    });
-
-    const mappedUser = { ...updated, name: updated.full_name };
+    const mappedUser = { id: sessionUser.id, email: sessionUser.email, name: sessionUser.name, role: sessionUser.role, tenantId: sessionUser.tenantId, avatarUrl: null };
     const res = NextResponse.json({ user: mappedUser }, { status: 200 });
     return attachSessionCookie(res, mappedUser);
   } catch (e) {

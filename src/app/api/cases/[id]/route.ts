@@ -1,11 +1,10 @@
-// Designed and Developed by SQ Tech
-export const dynamic = 'force-dynamic';
-
 import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
+import type { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
-import { canEditCases, canDeleteCases, getAuthenticatedUser, isAdmin } from '@/lib/auth-server';
+import { canEditCases, canDeleteCases, withTenant } from '@/lib/auth-server';
 import { forbidden, unauthorized } from '@/lib/http-errors';
+import { writeAuditLog } from '@/lib/audit';
 
 // ─── GET /api/cases/:id ──────────────────────────────────────────────────────
 export async function GET(
@@ -13,35 +12,44 @@ export async function GET(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const u = await getAuthenticatedUser();
-    if (!u) return unauthorized();
+    let tenantId;
+    try {
+      const res = await withTenant();
+      tenantId = res.tenantId;
+    } catch (e) {
+      return unauthorized();
+    }
 
     const { id } = await context.params;
-    const caseData = await prisma.case.findUnique({
-      where: { id },
+    
+    const whereClause: Prisma.CaseWhereInput = { id, deletedAt: null };
+    if (tenantId) whereClause.tenantId = tenantId;
+
+    const caseData = await prisma.case.findFirst({
+      where: whereClause,
       include: {
-        lawyer:    { select: { full_name: true, email: true } },
-        client:    true,
-        documents: { orderBy: { upload_date: 'desc' } },
-        history:   {
-          orderBy: { date: 'desc' },
-          include: { user: { select: { full_name: true } } },
-        },
-        billings:  { orderBy: { date: 'desc' } },
-        billableHours: { orderBy: { start_time: 'desc' } },
+        assignedTo: { select: { name: true, email: true } },
+        client:     true,
+        documents:  { where: { deletedAt: null }, orderBy: { createdAt: 'desc' } },
+        invoices:   { orderBy: { createdAt: 'desc' }, include: { payments: true } },
+        hearings:   { orderBy: { hearingDate: 'desc' } },
       },
     });
 
     if (!caseData) return NextResponse.json({ error: 'Case not found' }, { status: 404 });
-    // Allow all users to view individual cases now.
-    
+
     // Map to legacy shape so the existing UI doesn't break
     const mapped = {
       ...caseData,
-      status: caseData.case_status,
-      lawyerId: caseData.lawyer_id,
-      lawyer: caseData.lawyer ? { name: caseData.lawyer.full_name, email: caseData.lawyer.email } : null,
-      payments: caseData.billings,
+      title: caseData.caseTitle,
+      status: caseData.status,
+      caseFrom: caseData.client?.name || '',
+      caseAgainst: caseData.oppositeParty,
+      lawyerId: caseData.assignedToId,
+      lawyer: caseData.assignedTo ? { name: caseData.assignedTo.name, email: caseData.assignedTo.email } : null,
+      payments: caseData.invoices.flatMap((inv: any) => inv.payments),
+      location: caseData.courtName,
+      submissionDate: caseData.filingDate,
     };
 
     return NextResponse.json(mapped, { status: 200 });
@@ -57,13 +65,23 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const u = await getAuthenticatedUser();
-    if (!u) return unauthorized();
-    if (!canEditCases(u)) return forbidden();
+    let user, tenantId;
+    try {
+      const res = await withTenant();
+      user = res.user;
+      tenantId = res.tenantId;
+    } catch (e) {
+      return unauthorized();
+    }
+
+    if (!canEditCases(user)) return forbidden();
 
     const { id } = await context.params;
+    
+    const whereClause: Prisma.CaseWhereInput = { id, deletedAt: null };
+    if (tenantId) whereClause.tenantId = tenantId;
 
-    const existing = await prisma.case.findUnique({ where: { id } });
+    const existing = await prisma.case.findFirst({ where: whereClause });
     if (!existing) return NextResponse.json({ error: 'Case not found' }, { status: 404 });
 
     const body = await request.json();
@@ -79,65 +97,91 @@ export async function PATCH(
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const updatedCase = await prisma.case.update({
-      where: { id },
+    await prisma.case.updateMany({
+      where: whereClause,
       data: {
-        title,
+        caseTitle:        title,
         caseType,
-        caseFrom,
-        caseAgainst,
-        submissionDate:   new Date(submissionDate),
+        oppositeParty:    caseAgainst,
+        filingDate:       new Date(submissionDate),
         firNumber:        firNumber        || null,
-        location,
-        court_name:       location,
+        courtName:        location,
         judgeName:        judgeName        || null,
         nextHearingDate:  nextHearingDate  ? new Date(nextHearingDate) : null,
-        hearing_date:     nextHearingDate  ? new Date(nextHearingDate) : null,
-        clientPhone:      clientPhone      || null,
-        totalFee:         totalFee != null ? parseFloat(totalFee) : null,
-        pendingFeeDueDate: pendingFeeDueDate ? new Date(pendingFeeDueDate) : null,
-        decision:         decision         || null,
-        remarks:          remarks          || null,
-        case_status:      status           || 'FILED',
+        status:           status           || 'FILED',
       },
     });
 
-    // Also update the linked client's phone if it changed
-    if (clientPhone && existing.client_id) {
-      await prisma.client.update({
-        where: { id: existing.client_id },
-        data: { phone: clientPhone },
+    // Also update the linked client's phone/name if it changed
+    if ((clientPhone || caseFrom) && existing.clientId) {
+      await prisma.client.updateMany({
+        where: { id: existing.clientId, tenantId: tenantId! },
+        data: { 
+          phone: clientPhone || undefined,
+          name: caseFrom || undefined
+        },
       }).catch(() => {/* non-critical, ignore */});
     }
 
     if (feePaid && parseFloat(feePaid) > 0) {
-      await prisma.billing.create({
+      // Create a dummy invoice if none exists, or just attach to case
+      let invoice = await prisma.invoice.findFirst({
+        where: { caseId: id, tenantId: tenantId! }
+      });
+      if (!invoice) {
+        invoice = await prisma.invoice.create({
+          data: {
+            tenantId: tenantId!,
+            clientId: existing.clientId,
+            caseId: id,
+            invoiceNumber: `INV-${Date.now()}`,
+            amount: parseFloat(feePaid),
+            totalAmount: parseFloat(feePaid),
+            status: 'PARTIAL'
+          }
+        });
+      }
+      
+      await prisma.payment.create({
         data: {
+          tenantId: tenantId!,
+          clientId: existing.clientId,
+          caseId: id,
+          invoiceId: invoice.id,
           amount:   parseFloat(feePaid),
-          date:     paidDate ? new Date(paidDate) : new Date(),
+          paidAt:     paidDate ? new Date(paidDate) : new Date(),
           method:   paymentMethod || 'Cash',
-          slipUrl:  slipUrl || null,
-          case_id:  id,
-          status:   'paid',
+          status:   'COMPLETED',
         },
       });
     }
 
+    await writeAuditLog({
+      tenantId: tenantId!,
+      userId: user.id,
+      action: 'UPDATE',
+      entityType: 'Case',
+      entityId: existing.id,
+      oldValues: existing,
+      newValues: { title, status },
+    });
+
     revalidatePath(`/cases/${id}`);
     revalidatePath('/cases');
 
+    // Fetch fresh to return
+    const updatedCase = await prisma.case.findFirst({ where: whereClause });
+
     const response = {
       ...updatedCase,
-      status: updatedCase.case_status,
-      lawyerId: updatedCase.lawyer_id,
+      status: updatedCase?.status,
+      lawyerId: updatedCase?.assignedToId,
+      title: updatedCase?.caseTitle,
     };
 
     return NextResponse.json(response, { status: 200 });
   } catch (error: any) {
     console.error('[PATCH /api/cases/:id]', error);
-    if (error?.code === 'P2025') {
-      return NextResponse.json({ error: 'Case not found' }, { status: 404 });
-    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -148,23 +192,46 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const u = await getAuthenticatedUser();
-    if (!u) return unauthorized();
-    if (!canDeleteCases(u)) return forbidden();
+    let user, tenantId;
+    try {
+      const res = await withTenant();
+      user = res.user;
+      tenantId = res.tenantId;
+    } catch (e) {
+      return unauthorized();
+    }
+    
+    if (!canDeleteCases(user)) return forbidden();
 
     const { id } = await context.params;
 
-    const existing = await prisma.case.findUnique({ where: { id } });
+    const whereClause: Prisma.CaseWhereInput = { id, deletedAt: null };
+    if (tenantId) whereClause.tenantId = tenantId;
+
+    const existing = await prisma.case.findFirst({ where: whereClause });
     if (!existing) return NextResponse.json({ error: 'Case not found' }, { status: 404 });
 
-    await prisma.case.delete({ where: { id } });
+    const result = await prisma.case.updateMany({ 
+      where: whereClause,
+      data: { deletedAt: new Date() }
+    });
+
+    if (result.count === 0) {
+      return NextResponse.json({ error: 'Case not found' }, { status: 404 });
+    }
+
+    await writeAuditLog({
+      tenantId: tenantId!,
+      userId: user.id,
+      action: 'DELETE',
+      entityType: 'Case',
+      entityId: id,
+    });
+    
     revalidatePath('/cases');
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error: any) {
     console.error('[DELETE /api/cases/:id]', error);
-    if (error?.code === 'P2025') {
-      return NextResponse.json({ error: 'Case not found' }, { status: 404 });
-    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

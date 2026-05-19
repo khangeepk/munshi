@@ -2,8 +2,10 @@ import { PrismaClient } from '@prisma/client';
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
-// Bypassing Vercel's incorrect environment variables with the valid pooler URL
-const dbUrl = "postgresql://postgres.plnjsgqqtenhdqusnzhw:Khangee786786@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true";
+// Use env variable — fallback to Supabase pooler URL for production
+const dbUrl =
+  process.env.DATABASE_URL ??
+  'postgresql://postgres.plnjsgqqtenhdqusnzhw:Khangee786786@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true';
 
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({
   datasourceUrl: dbUrl,

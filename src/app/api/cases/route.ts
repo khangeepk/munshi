@@ -1,48 +1,53 @@
-export const dynamic = 'force-dynamic';
-
-// Designed and Developed by SQ Tech
-
 import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
-import { getAuthenticatedUser, isAdmin, canCreateCases } from '@/lib/auth-server';
+import { withTenant, canCreateCases } from '@/lib/auth-server';
 import { forbidden, unauthorized } from '@/lib/http-errors';
+import { writeAuditLog } from '@/lib/audit';
 
 export async function GET(request: Request) {
   try {
-    const u = await getAuthenticatedUser();
-    if (!u) return unauthorized();
-
+    let tenantId;
+    try {
+      const res = await withTenant();
+      tenantId = res.tenantId;
+    } catch (e) {
+      return unauthorized();
+    }
+    
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
 
     const where: any = {};
-    // Removed legacy lawyer_id filter so all users can see all cases.
-    if (status) {
-      where.case_status = status;
-    }
+    if (tenantId) where.tenantId = tenantId;
+    if (status) where.status = status;
 
     const cases = await prisma.case.findMany({
       where,
       include: { 
-        lawyer: { select: { full_name: true, email: true } },
+        assignedTo: { select: { name: true, email: true } },
         client: true,
-        billings: true,
+        invoices: { include: { payments: true } },
         documents: true,
-        history: true,
+        hearings: true,
       },
-      orderBy: { updated_at: 'desc' },
+      orderBy: { updatedAt: 'desc' },
     });
     
-    // Map the new schema to legacy UI expectation temporarily
+    // Map to legacy UI expectation temporarily
     const mapped = cases.map((c: any) => ({
       ...c,
-      status: c.case_status,
-      caseFrom: c.client?.name || c.caseFrom,
-      clientPhone: c.client?.phone || c.clientPhone,
-      lawyerId: c.lawyer_id,
-      payments: c.billings,
-      lawyer: c.lawyer ? { name: c.lawyer.full_name, email: c.lawyer.email } : null
+      title: c.caseTitle,
+      status: c.status,
+      caseFrom: c.client?.name || '',
+      caseAgainst: c.oppositeParty,
+      clientPhone: c.client?.phone || '',
+      lawyerId: c.assignedToId,
+      payments: c.invoices.flatMap((inv: any) => inv.payments),
+      lawyer: c.assignedTo ? { name: c.assignedTo.name, email: c.assignedTo.email } : null,
+      submissionDate: c.filingDate,
+      location: c.courtName,
+      nextHearingDate: c.nextHearingDate,
     }));
     
     return NextResponse.json(mapped, { status: 200 });
@@ -54,9 +59,16 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const u = await getAuthenticatedUser();
-    if (!u) return unauthorized();
-    if (!canCreateCases(u)) return forbidden();
+    let user, tenantId;
+    try {
+      const res = await withTenant();
+      user = res.user;
+      tenantId = res.tenantId;
+    } catch (e) {
+      return unauthorized();
+    }
+    
+    if (!canCreateCases(user)) return forbidden();
 
     const body = await request.json();
 
@@ -72,18 +84,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Upsert Client based on caseFrom name or email
+    // Upsert Client based on caseFrom name and tenantId
     let client = await prisma.client.findFirst({
-      where: { name: caseFrom }
+      where: { name: caseFrom, tenantId: tenantId! }
     });
     
     if (!client) {
       client = await prisma.client.create({
         data: {
+          tenantId: tenantId!,
           name: caseFrom,
-          phone: clientPhone || null,
+          phone: clientPhone || '',
           email: clientEmail || null,
-          cnic_number: clientCnic || null,
+          cnic: clientCnic || null,
           address: clientAddress || null,
         }
       });
@@ -91,47 +104,78 @@ export async function POST(request: Request) {
 
     const newCase = await prisma.case.create({
       data: {
-        title,
-        client_id: client.id,
-        court_name: location,
-        case_status: status || 'FILED',
-        hearing_date: nextHearingDate ? new Date(nextHearingDate) : null,
-        
-        // Legacy compat fields
+        tenantId: tenantId!,
+        caseTitle: title,
+        caseNumber: `CASE-${Date.now()}`,
+        clientId: client.id,
+        courtName: location,
+        status: status || 'FILED',
+        nextHearingDate: nextHearingDate ? new Date(nextHearingDate) : null,
         caseType,
-        caseFrom,
-        caseAgainst,
-        submissionDate: new Date(submissionDate),
+        oppositeParty: caseAgainst,
+        filingDate: new Date(submissionDate),
         firNumber: firNumber || null,
-        location,
         judgeName: judgeName || null,
-        totalFee: totalFee != null ? parseFloat(totalFee) : null,
-        pendingFeeDueDate: pendingFeeDueDate ? new Date(pendingFeeDueDate) : null,
-        decision: decision || null,
-        remarks: remarks || null,
-        
-        lawyer_id: u.id,
+        assignedToId: user.id,
       },
     });
 
-    if (feePaid && parseFloat(feePaid) > 0) {
-      await prisma.billing.create({
+    await writeAuditLog({
+      tenantId: tenantId!,
+      userId: user.id,
+      action: 'CREATE',
+      entityType: 'Case',
+      entityId: newCase.id,
+      newValues: { title },
+    });
+
+    if (totalFee != null) {
+      const invoice = await prisma.invoice.create({
         data: {
-          amount: parseFloat(feePaid),
-          date: paidDate ? new Date(paidDate) : new Date(),
-          method: paymentMethod || 'Cash',
-          slipUrl: slipUrl || null,
-          case_id: newCase.id,
-          status: 'paid'
+          tenantId: tenantId!,
+          clientId: client.id,
+          caseId: newCase.id,
+          invoiceNumber: `INV-${Date.now()}`,
+          amount: parseFloat(totalFee),
+          totalAmount: parseFloat(totalFee),
+          status: 'DRAFT',
+          dueDate: pendingFeeDueDate ? new Date(pendingFeeDueDate) : null,
         }
       });
+
+      if (feePaid && parseFloat(feePaid) > 0) {
+        await prisma.payment.create({
+          data: {
+            tenantId: tenantId!,
+            clientId: client.id,
+            caseId: newCase.id,
+            invoiceId: invoice.id,
+            amount: parseFloat(feePaid),
+            method: paymentMethod || 'Cash',
+            status: 'COMPLETED',
+            paidAt: paidDate ? new Date(paidDate) : new Date(),
+          }
+        });
+      }
+    } else if (feePaid && parseFloat(feePaid) > 0) {
+        await prisma.payment.create({
+          data: {
+            tenantId: tenantId!,
+            clientId: client.id,
+            caseId: newCase.id,
+            amount: parseFloat(feePaid),
+            method: paymentMethod || 'Cash',
+            status: 'COMPLETED',
+            paidAt: paidDate ? new Date(paidDate) : new Date(),
+          }
+        });
     }
 
     revalidatePath('/cases');
     
     const responseCase = {
       ...newCase,
-      status: newCase.case_status,
+      status: newCase.status,
       payments: feePaid ? [{ amount: parseFloat(feePaid) }] : []
     };
     

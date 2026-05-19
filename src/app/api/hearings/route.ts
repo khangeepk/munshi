@@ -1,9 +1,7 @@
-export const dynamic = 'force-dynamic';
-
 import { NextResponse } from 'next/server';
 import type { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
-import { getAuthenticatedUser, isAdmin } from '@/lib/auth-server';
+import { withTenant, isAdmin } from '@/lib/auth-server';
 import { unauthorized } from '@/lib/http-errors';
 
 const COURT_LABEL: Record<string, string> = {
@@ -36,122 +34,148 @@ export interface HearingPayload {
 
 export async function GET() {
   try {
-    const u = await getAuthenticatedUser();
-    if (!u) return unauthorized();
+    let user, tenantId;
+    try {
+      const res = await withTenant();
+      user = res.user;
+      tenantId = res.tenantId;
+    } catch (e) {
+      return unauthorized();
+    }
 
     const today = startOfToday();
 
+    // In the new schema, hearings are stored in the `Hearing` model, but cases also have `nextHearingDate`
+    // We can pull both, but ideally just `Hearing` records. Since legacy data migrated nextHearingDate to Cases,
+    // we'll fetch Cases with nextHearingDate, AND Hearing records.
+
     const caseWhere: Prisma.CaseWhereInput = {
-      OR: [
-        { hearing_date: { not: null } },
-        { nextHearingDate: { not: null } },
-      ],
+      nextHearingDate: { not: null },
     };
-    if (!isAdmin(u.role)) {
-      caseWhere.lawyer_id = u.id;
+    if (tenantId) caseWhere.tenantId = tenantId;
+    if (!isAdmin(user.role)) {
+      caseWhere.assignedToId = user.id;
     }
 
     const cases = await prisma.case.findMany({
       where: caseWhere,
       select: {
         id: true,
-        title: true,
-        location: true,
+        caseTitle: true,
+        courtName: true,
         judgeName: true,
-        hearing_date: true,
         nextHearingDate: true,
-        clientPhone: true,
-        decision: true,
-        remarks: true,
-        caseFrom: true,
-        caseAgainst: true,
         client: { select: { name: true, phone: true } },
       },
     });
 
-    type Row = HearingPayload;
-
-    const upcoming: Row[] = [];
-    const scheduledPast: Row[] = [];
+    const upcoming: HearingPayload[] = [];
+    const scheduledPast: HearingPayload[] = [];
 
     for (const c of cases) {
-      // Use hearing_date (new schema) OR nextHearingDate (migrated legacy data)
-      const rawDate = (c as any).hearing_date ?? (c as any).nextHearingDate;
+      const rawDate = c.nextHearingDate;
       if (!rawDate) continue;
       const dt = rawDate instanceof Date ? rawDate : new Date(rawDate as string);
       if (isNaN(dt.getTime())) continue;
 
-      const phone = c.client?.phone || c.clientPhone || null;
-      const courtLabel = COURT_LABEL[c.location] ?? c.location;
+      const phone = c.client?.phone || null;
+      const courtLabel = COURT_LABEL[c.courtName] ?? c.courtName;
 
       if (dt >= today) {
         upcoming.push({
           id: `case-up-${c.id}`,
           caseId: c.id,
-          caseTitle: c.title,
+          caseTitle: c.caseTitle,
           hearingAt: dt.toISOString(),
           court: courtLabel,
           judge: c.judgeName ?? null,
           clientPhone: phone,
           mode: 'agenda',
-          detail: c.remarks?.trim() || 'No agenda noted for this listing yet.',
+          detail: 'No agenda noted for this listing yet.',
         });
       } else {
         scheduledPast.push({
           id: `case-past-${c.id}-${calendarDayKey(dt.toISOString())}`,
           caseId: c.id,
-          caseTitle: c.title,
+          caseTitle: c.caseTitle,
           hearingAt: dt.toISOString(),
           court: courtLabel,
           judge: c.judgeName ?? null,
           clientPhone: phone,
           mode: 'outcome',
-          detail: c.decision?.trim() || c.remarks?.trim() || 'No recorded outcome for this listing.',
+          detail: 'No recorded outcome for this listing.',
+        });
+      }
+    }
+
+    // Also fetch explicit Hearing records
+    const hearingWhere: Prisma.HearingWhereInput = {};
+    if (tenantId) hearingWhere.tenantId = tenantId;
+    if (!isAdmin(user.role)) {
+      hearingWhere.case = { assignedToId: user.id };
+    }
+
+    const hearings = await prisma.hearing.findMany({
+      where: hearingWhere,
+      include: {
+        case: {
+          select: {
+            caseTitle: true,
+            judgeName: true,
+            client: { select: { phone: true } }
+          }
+        }
+      }
+    });
+
+    for (const h of hearings) {
+      const dt = h.hearingDate;
+      if (isNaN(dt.getTime())) continue;
+
+      const phone = h.case?.client?.phone || null;
+      const courtLabel = COURT_LABEL[h.courtName] ?? h.courtName;
+
+      if (dt >= today) {
+        upcoming.push({
+          id: `hearing-up-${h.id}`,
+          caseId: h.caseId,
+          caseTitle: h.case?.caseTitle || 'Unknown Case',
+          hearingAt: dt.toISOString(),
+          court: courtLabel,
+          judge: h.case?.judgeName ?? null,
+          clientPhone: phone,
+          mode: 'agenda',
+          detail: 'No purpose noted.',
+        });
+      } else {
+        scheduledPast.push({
+          id: `hearing-past-${h.id}-${calendarDayKey(dt.toISOString())}`,
+          caseId: h.caseId,
+          caseTitle: h.case?.caseTitle || 'Unknown Case',
+          hearingAt: dt.toISOString(),
+          court: courtLabel,
+          judge: h.case?.judgeName ?? null,
+          clientPhone: phone,
+          mode: 'outcome',
+          detail: h.orderSummary?.trim() || h.remarks?.trim() || 'No recorded outcome.',
         });
       }
     }
 
     upcoming.sort((a, b) => new Date(a.hearingAt).getTime() - new Date(b.hearingAt).getTime());
+    
+    // De-dupe past hearings to avoid clutter if a case and a hearing record match
+    const pastMerged: HearingPayload[] = [];
+    const pastKeys = new Set<string>();
+    
+    for (const p of scheduledPast) {
+        const key = `${p.caseId}|${calendarDayKey(p.hearingAt)}`;
+        if (!pastKeys.has(key)) {
+            pastKeys.add(key);
+            pastMerged.push(p);
+        }
+    }
 
-    const activityWhere: Prisma.ActivityWhereInput = { date: { lt: today } };
-    if (!isAdmin(u.role)) activityWhere.case = { lawyer_id: u.id };
-
-    const activities = await prisma.activity.findMany({
-      where: activityWhere,
-      include: {
-        case: {
-          select: {
-            id: true, title: true, location: true, judgeName: true, clientPhone: true,
-            client: { select: { phone: true } },
-          },
-        },
-      },
-      orderBy: { date: 'desc' },
-      take: 400,
-    });
-
-    const hearingActivities = activities.filter((a: any) =>
-      /hearing/i.test(`${a.title} ${a.description ?? ''}`)
-    );
-
-    const activityPast: Row[] = hearingActivities.map((a: any) => ({
-      id: `act-${a.id}`,
-      caseId: a.caseId,
-      caseTitle: a.case.title,
-      hearingAt: a.date.toISOString(),
-      court: COURT_LABEL[a.case.location] ?? a.case.location,
-      judge: a.case.judgeName ?? null,
-      clientPhone: a.case.client?.phone || a.case.clientPhone || null,
-      mode: 'outcome' as const,
-      detail: (a.description?.trim() ? `${a.title} — ${a.description.trim()}` : a.title.trim()) || 'Hearing milestone recorded.',
-    }));
-
-    const activityDayKeys = new Set(activityPast.map((q) => `${q.caseId}|${calendarDayKey(q.hearingAt)}`));
-    const scheduledPastDeduped = scheduledPast.filter(
-      (row) => !activityDayKeys.has(`${row.caseId}|${calendarDayKey(row.hearingAt)}`)
-    );
-
-    const pastMerged = [...activityPast, ...scheduledPastDeduped];
     pastMerged.sort((a, b) => new Date(b.hearingAt).getTime() - new Date(a.hearingAt).getTime());
 
     return NextResponse.json({ upcoming, past: pastMerged, serverNow: new Date().toISOString() }, { status: 200 });

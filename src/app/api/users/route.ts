@@ -3,48 +3,72 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { hashPassword } from '@/lib/password';
-import { getAuthenticatedUser, isAdmin } from '@/lib/auth-server';
+import { withTenant, isAdmin } from '@/lib/auth-server';
 import { forbidden, unauthorized } from '@/lib/http-errors';
+import { writeAuditLog } from '@/lib/audit';
 
 export async function GET() {
-  const u = await getAuthenticatedUser();
-  if (!u) return unauthorized();
-  if (!isAdmin(u.role)) return forbidden();
+  let user, tenantId;
+  try {
+    const res = await withTenant();
+    user = res.user;
+    tenantId = res.tenantId;
+  } catch (e) {
+    return unauthorized();
+  }
+  
+  if (!isAdmin(user.role)) return forbidden();
 
-  const users = await prisma.profile.findMany({
+  const whereClause: any = {};
+  if (tenantId) whereClause.tenantId = tenantId;
+
+  const users = await prisma.user.findMany({
+    where: whereClause,
     select: {
       id:        true,
       email:     true,
-      full_name: true,
+      name:      true,
       role:      true,
-      can_create_cases: true,
-      can_edit_cases: true,
-      can_delete_cases: true,
-      created_at: true,
+      canCreate: true,
+      canEdit:   true,
+      canDelete: true,
+      createdAt: true,
     },
-    orderBy: { created_at: 'asc' },
+    orderBy: { createdAt: 'asc' },
   });
 
   // Map to legacy shape expected by the UI
-  const mapped = users.map((usr: typeof users[number]) => ({ ...usr, name: usr.full_name, createdAt: usr.created_at }));
+  const mapped = users.map((usr: typeof users[number]) => ({ 
+    ...usr, 
+    can_create_cases: usr.canCreate,
+    can_edit_cases: usr.canEdit,
+    can_delete_cases: usr.canDelete
+  }));
   return NextResponse.json(mapped, { status: 200 });
 }
 
 export async function POST(request: Request) {
   try {
-    const u = await getAuthenticatedUser();
-    if (!u) return unauthorized();
-    if (!isAdmin(u.role)) return forbidden();
+    let currentUser, tenantId;
+    try {
+      const res = await withTenant();
+      currentUser = res.user;
+      tenantId = res.tenantId;
+    } catch (e) {
+      return unauthorized();
+    }
+    
+    if (!isAdmin(currentUser.role)) return forbidden();
 
     const body = await request.json();
     const email    = typeof body.email    === 'string' ? body.email.trim()    : '';
     const name     = typeof body.name     === 'string' ? body.name.trim()     : '';
     const password = typeof body.password === 'string' ? body.password        : '';
-    const role     = typeof body.role     === 'string' ? body.role.trim()     : 'DATA_ENTRY';
+    const role     = typeof body.role     === 'string' ? body.role.trim()     : 'JUNIOR_LAWYER';
     
-    const can_create_cases = !!body.can_create_cases;
-    const can_edit_cases   = !!body.can_edit_cases;
-    const can_delete_cases = !!body.can_delete_cases;
+    const canCreate = !!body.can_create_cases;
+    const canEdit   = !!body.can_edit_cases;
+    const canDelete = !!body.can_delete_cases;
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: 'Valid email required' }, { status: 400 });
@@ -54,20 +78,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
     }
 
-    const created = await prisma.profile.create({
+    const created = await prisma.user.create({
       data: {
+        tenantId: tenantId!,
         email,
-        full_name:    name,
-        role,
-        passwordHash: hashPassword(password),
-        can_create_cases,
-        can_edit_cases,
-        can_delete_cases,
+        name:         name,
+        role:         role as any,
+        password:     hashPassword(password),
+        canCreate,
+        canEdit,
+        canDelete,
       },
-      select: { id: true, email: true, full_name: true, role: true, can_create_cases: true, can_edit_cases: true, can_delete_cases: true, created_at: true },
+      select: { id: true, email: true, name: true, role: true, canCreate: true, canEdit: true, canDelete: true, createdAt: true },
     });
 
-    return NextResponse.json({ ...created, name: created.full_name, createdAt: created.created_at }, { status: 201 });
+    await writeAuditLog({
+      tenantId: tenantId!,
+      userId: currentUser.id,
+      action: 'CREATE',
+      entityType: 'User',
+      entityId: created.id,
+      newValues: { email, name, role },
+    });
+
+    return NextResponse.json({ 
+      ...created, 
+      can_create_cases: created.canCreate,
+      can_edit_cases: created.canEdit,
+      can_delete_cases: created.canDelete
+    }, { status: 201 });
   } catch (e: unknown) {
     const code = typeof e === 'object' && e && 'code' in e ? String((e as { code: unknown }).code) : '';
     if (code === 'P2002') {
