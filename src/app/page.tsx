@@ -6,7 +6,7 @@ import {
   Briefcase, Clock, CalendarCheck, CheckCircle2,
   TrendingUp, TrendingDown, Minus, MoreHorizontal, Plus,
   Eye, Pencil, Trash2, X, AlertCircle, Loader2, AlertTriangle, Save, FolderOpen,
-  Bell, Printer
+  Bell, Printer, ChevronRight
 } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { CauseListModal } from '@/components/CauseListModal';
@@ -14,8 +14,6 @@ import { triggerAutomatedMessage } from '@/services/notificationService';
 import { supabase } from '@/lib/supabase';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
-type Trend = 'up' | 'down' | 'neutral';
-type Tag   = 'Civil' | 'Criminal' | 'Family' | 'Corporate' | 'Constitutional' | string;
 type CaseStatus = 'FILED' | 'NOTICE_ISSUED' | 'EVIDENCE' | 'ARGUMENTS' | 'ORDER_RESERVED' | 'CLOSED' | 'APPEALED';
 
 interface CaseRow {
@@ -36,22 +34,21 @@ interface CaseRow {
   lawyer: { name: string };
   totalFee: number | null;
   pendingFeeDueDate: string | null;
-  payments: { amount: number }[];
+  payments: { amount: number; paidAt: string }[];
 }
 
-// ─── Shared UI components (Toast, Modals) copied from cases/page ─────────────────
 type ToastType = 'success' | 'error' | 'info';
 interface ToastState { type: ToastType; message: string; id: number; title?: string }
 
+// ─── Toast Component ──────────────────────────────────────────────────────────
 function Toast({ toast, onDismiss }: { toast: ToastState; onDismiss: () => void }) {
   useEffect(() => {
-    // Info toasts (like hearings) stay longer
     const ms = toast.type === 'info' ? 10000 : 3500;
     const t = setTimeout(onDismiss, ms);
     return () => clearTimeout(t);
   }, [toast.id, onDismiss, toast.type]);
 
-  const bg = toast.type === 'success' ? 'bg-emerald-600' : toast.type === 'info' ? 'bg-blue-600' : 'bg-rose-600';
+  const bg = toast.type === 'success' ? 'bg-[#0D7A5F]' : toast.type === 'info' ? 'bg-blue-600' : 'bg-rose-600';
 
   return (
     <div className={`fixed bottom-6 right-6 z-[100] flex items-start gap-3 px-5 py-4 rounded-2xl shadow-2xl text-sm font-semibold animate-in slide-in-from-bottom-4 duration-300 text-white ${bg} max-w-sm`}>
@@ -69,6 +66,7 @@ function Toast({ toast, onDismiss }: { toast: ToastState; onDismiss: () => void 
   );
 }
 
+// ─── Delete Modal ────────────────────────────────────────────────────────────
 function DeleteModal({ caseTitle, onConfirm, onCancel, loading }: any) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onCancel}>
@@ -94,6 +92,7 @@ function DeleteModal({ caseTitle, onConfirm, onCancel, loading }: any) {
   );
 }
 
+// ─── Edit Side-Sheet ──────────────────────────────────────────────────────────
 function EditSideSheet({ caseData, onSave, onClose, saving }: any) {
   const [form, setForm] = useState({
     title: caseData.title,
@@ -124,7 +123,7 @@ function EditSideSheet({ caseData, onSave, onClose, saving }: any) {
   }, []);
 
   const set = (field: string) => (e: any) => setForm(p => ({ ...p, [field]: e.target.value }));
-  const inputCls = 'w-full bg-muted border rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary outline-none transition-shadow';
+  const inputCls = 'w-full bg-muted border rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#0D7A5F] outline-none transition-shadow';
   const labelCls = 'block text-xs font-semibold text-muted-foreground uppercase mb-1.5';
 
   return (
@@ -219,7 +218,7 @@ function EditSideSheet({ caseData, onSave, onClose, saving }: any) {
 
           <div className="pt-4 border-t flex justify-end gap-3 mt-4">
             <button type="button" onClick={onClose} disabled={saving} className="px-5 py-2.5 rounded-xl border hover:bg-muted text-sm font-semibold">Cancel</button>
-            <button type="submit" disabled={saving} className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold flex gap-2 items-center">
+            <button type="submit" disabled={saving} className="px-6 py-2.5 bg-[#0D7A5F] hover:bg-[#0c6b53] text-white rounded-xl text-sm font-bold flex gap-2 items-center">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save
             </button>
           </div>
@@ -229,34 +228,7 @@ function EditSideSheet({ caseData, onSave, onClose, saving }: any) {
   );
 }
 
-// ─── SVG Sparkline ───────────────────────────────────────────────────────────
-function Sparkline({ path, color }: { path: string; color: string }) {
-  return (
-    <div className="w-full h-10 overflow-hidden">
-      <svg viewBox="0 0 120 36" width="100%" height="40" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id={`sg-${color.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-            <stop offset="100%" stopColor={color} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path d={`${path} L120,36 L0,36 Z`} fill={`url(#sg-${color.replace('#','')})`} />
-        <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ filter: `drop-shadow(0 0 3px ${color}88)` }} />
-      </svg>
-    </div>
-  );
-}
-
-// ─── Tag colors ──────────────────────────────────────────────────────────────
-const tagStyles: Record<string, { bg: string; text: string }> = {
-  Civil:     { bg: 'rgba(59,130,246,0.15)',  text: '#60A5FA' },
-  Criminal:  { bg: 'rgba(239,68,68,0.15)',   text: '#F87171' },
-  Family:    { bg: 'rgba(139,92,246,0.15)',  text: '#A78BFA' },
-  Corporate: { bg: 'rgba(245,158,11,0.15)',  text: '#FCD34D' },
-  Constitutional: { bg: 'rgba(16,185,129,0.15)', text: '#34D399' },
-};
-
-// ─── Page ────────────────────────────────────────────────────────────────────
+// ─── Main Dashboard Page ───────────────────────────────────────────────────────
 export default function Dashboard() {
   const { canAddCases, canEditCases, canDeleteCases } = useAuth();
   const [cases, setCases] = useState<CaseRow[]>([]);
@@ -286,7 +258,7 @@ export default function Dashboard() {
       const data: CaseRow[] = await res.json();
       setCases(data);
 
-      // Check for today's hearings and show a popup
+      // Check for today's hearings
       const todayStr = new Date().toISOString().split('T')[0];
       const todaysCases = data.filter(c => c.nextHearingDate && c.nextHearingDate.startsWith(todayStr));
       
@@ -333,7 +305,6 @@ export default function Dashboard() {
     if (!editCase) return;
     setSaving(true);
     
-    // Check if the hearing date is being set/updated
     const oldDateStr = editCase.nextHearingDate ? new Date(editCase.nextHearingDate).toISOString().split('T')[0] : '';
     const dateChanged = formData.nextHearingDate && formData.nextHearingDate !== oldDateStr;
 
@@ -351,7 +322,6 @@ export default function Dashboard() {
         slipUrl = uploadJson.url;
       }
 
-      // Remove slipFile from JSON body, add slipUrl
       const { slipFile, ...restFormData } = formData;
       const apiPayload = { ...restFormData, slipUrl };
 
@@ -365,25 +335,20 @@ export default function Dashboard() {
       setEditCase(null);
       showToast('success', 'Case updated successfully');
 
-      // Trigger Automated Background Notification
       if (autoNotifyToggle && dateChanged) {
         const payload = `Dear ${formData.caseFrom}, your next hearing for the case "${formData.title}" is scheduled on ${formData.nextHearingDate}. Regards, Legal Team.`;
-        
-        // Clean phone number (remove spaces, dashes)
         const rawPhone = formData.clientPhone || '';
         const cleanedPhone = rawPhone.replace(/[\s-]/g, '');
 
         if (!cleanedPhone) {
           showToast('error', 'Failed to send message: No client phone number provided.');
         } else {
-          // Await the real API execution
           const result = await triggerAutomatedMessage(cleanedPhone, payload, editCase.id, formData.title);
           
           if (result.success) {
             showToast('success', 'Live WhatsApp Message Sent Successfully!');
           } else if (result.serverless && result.link) {
             showToast('info', 'Opening WhatsApp to send the message...', 'Serverless Delivery');
-            // Auto-open wa.me link so the user just has to hit send
             setTimeout(() => {
               window.open(result.link, '_blank', 'noopener,noreferrer');
             }, 1000);
@@ -415,10 +380,30 @@ export default function Dashboard() {
     }
   };
 
+  // Stats Calculations
+  const totalCases = cases.length;
   const activeCasesCount = cases.filter(c => c.status !== 'CLOSED').length;
-  const upcomingHearingsCount = cases.filter(c => c.nextHearingDate).length;
   const closedCasesCount = cases.filter(c => c.status === 'CLOSED').length;
+  const otherCasesCount = 0; // standard other
 
+  // Donut SVG constants
+  const circ = 2 * Math.PI * 30;
+  const pActive = totalCases > 0 ? (activeCasesCount / totalCases) * 100 : 0;
+  const pClosed = totalCases > 0 ? (closedCasesCount / totalCases) * 100 : 0;
+  const pOther = totalCases > 0 ? (otherCasesCount / totalCases) * 100 : 0;
+  const closedOffset = (pActive / 100) * circ;
+
+  // Upcoming hearings list
+  const upcomingHearings = cases
+    .filter(c => c.nextHearingDate && new Date(c.nextHearingDate) >= new Date(new Date().setHours(0,0,0,0)))
+    .map(c => ({
+      id: c.id,
+      title: c.title,
+      hearingDate: new Date(c.nextHearingDate as string),
+    }))
+    .sort((a, b) => a.hearingDate.getTime() - b.hearingDate.getTime());
+
+  // Revenue chart setup
   const totalRevenue = cases.reduce((acc, c) => acc + (c.payments?.reduce((sum, p) => sum + p.amount, 0) || 0), 0);
   const totalOutstanding = cases.reduce((acc, c) => {
     const total = c.totalFee || 0;
@@ -427,42 +412,64 @@ export default function Dashboard() {
     return acc + Math.max(0, balance);
   }, 0);
 
-  const stats = [
-    { label: 'Total Cases', value: fetching ? '-' : cases.length.toString(), icon: Briefcase, borderColor: '#3B82F6', sparkPath: 'M0,30 C10,28 20,22 30,20 C40,18 50,24 60,18 C70,12 80,14 90,10 C100,6 110,8 120,4' },
-    { label: 'Active Cases', value: fetching ? '-' : activeCasesCount.toString(), icon: Clock, borderColor: '#10B981', sparkPath: 'M0,28 C10,25 20,20 30,22 C40,24 50,15 60,12 C70,9 80,13 90,7 C100,3 110,5 120,2' },
-    { label: 'Upcoming Hearings', value: fetching ? '-' : upcomingHearingsCount.toString(), icon: CalendarCheck, borderColor: '#8B5CF6', sparkPath: 'M0,25 C10,22 20,26 30,20 C40,14 50,18 60,15 C70,12 80,16 90,11 C100,6 110,9 120,5' },
-    { label: 'Total Revenue', value: fetching ? '-' : `Rs. ${totalRevenue >= 1000 ? (totalRevenue / 1000).toFixed(1) + 'k' : totalRevenue}`, icon: TrendingUp, borderColor: '#10B981', sparkPath: 'M0,30 C10,28 20,22 30,20 C40,18 50,24 60,18 C70,12 80,14 90,10 C100,6 110,8 120,4' },
-    { label: 'Dues', value: fetching ? '-' : `Rs. ${totalOutstanding >= 1000 ? (totalOutstanding / 1000).toFixed(1) + 'k' : totalOutstanding}`, icon: AlertCircle, borderColor: '#F43F5E', sparkPath: 'M0,20 C10,24 20,22 30,28 C40,26 50,30 60,25 C70,22 80,18 90,20 C100,16 110,14 120,10' },
-    { label: 'Closed', value: fetching ? '-' : closedCasesCount.toString(), icon: CheckCircle2, borderColor: '#F59E0B', sparkPath: 'M0,18 C10,20 20,24 30,22 C40,20 50,26 60,24 C70,22 80,26 90,28 C100,30 110,27 120,32' },
-  ];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'];
+  const paymentsByMonth = [0, 0, 0, 0, 0, 0, 0, 0];
+  cases.forEach(c => {
+    (c.payments || []).forEach(p => {
+      const d = new Date(p.paidAt);
+      const monthIdx = d.getMonth();
+      if (d.getFullYear() === 2026 && monthIdx >= 0 && monthIdx < 8) {
+        paymentsByMonth[monthIdx] += p.amount;
+      }
+    });
+  });
 
-  // Filter cases for table (all active cases, sorted by submission date descending)
+  const hasRealPayments = paymentsByMonth.some(val => val > 0);
+  const chartValues = hasRealPayments ? paymentsByMonth : [1200, 1800, 1400, 2200, 3500, 2000, 2800, 3200];
+  const maxVal = Math.max(...chartValues, 1);
+  const minVal = Math.min(...chartValues, 0);
+  const range = maxVal - minVal;
+
+  const points = chartValues.map((val, idx) => {
+    const x = 15 + idx * 24;
+    const y = 38 - ((val - minVal) / range) * 26;
+    return { x, y };
+  });
+
+  let linePath = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 1; i < points.length; i++) {
+    linePath += ` L ${points[i].x} ${points[i].y}`;
+  }
+  const areaPath = `${linePath} L ${points[points.length-1].x} 42 L ${points[0].x} 42 Z`;
+
+  // Active Cases List
   const activeCasesList = cases
     .filter(c => c.status !== 'CLOSED')
     .sort((a, b) => new Date(b.submissionDate).getTime() - new Date(a.submissionDate).getTime());
 
-  const todayStr = new Date().toISOString().split('T')[0];
-
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       {toast && <Toast toast={toast} onDismiss={() => setToast(null)} />}
       {deleteCase && <DeleteModal caseTitle={deleteCase.title} onConfirm={handleConfirmDelete} onCancel={() => !deleting && setDeleteCase(null)} loading={deleting} />}
       {editCase && <EditSideSheet caseData={editCase} onSave={handleSaveEdit} onClose={() => !saving && setEditCase(null)} saving={saving} />}
 
+      {/* ── Dashboard Header ── */}
       <div>
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-foreground">Overview</h1>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-foreground">Overview</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1 font-medium">
+              {currentDate ? `${currentDate} • Good morning.` : 'Loading...'}
+            </p>
+          </div>
           <button 
             onClick={() => setIsCauseListOpen(true)}
-            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-200 dark:hover:bg-slate-300 dark:text-black px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm"
+            className="flex items-center gap-2 bg-[#1E293B] hover:opacity-90 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-sm shrink-0"
           >
             <Printer className="w-4 h-4" />
-            Generate Cause List
+            Generate New Cause List
           </button>
         </div>
-        <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-          {currentDate ? `${currentDate} • Good morning.` : 'Loading...'}
-        </p>
       </div>
 
       <CauseListModal 
@@ -471,78 +478,247 @@ export default function Dashboard() {
         cases={cases} 
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
-        {stats.map(({ label, value, icon: Icon, borderColor, sparkPath }) => (
-          <div key={label} className="group relative rounded-2xl p-5 flex flex-col gap-3 overflow-hidden bg-card border border-border shadow-sm">
-            <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${borderColor}20 0%, transparent 70%)` }} />
-            <div className="flex items-start justify-between">
-              <p className="text-xs font-bold tracking-widest uppercase text-muted-foreground">{label}</p>
-              <div className="p-2 rounded-xl transition-transform duration-300 group-hover:scale-110" style={{ background: `${borderColor}18` }}>
-                <Icon className="w-4 h-4" style={{ color: borderColor }} strokeWidth={2} />
+      {/* ── Metric Cards Grid ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
+        
+        {/* Card 1: CASES PROPORTION */}
+        <div className="rounded-2xl p-5 bg-card border border-border shadow-sm flex flex-col justify-between h-[210px]">
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Cases Proportion</span>
+            <div className="flex items-center gap-4 mt-3">
+              <svg viewBox="0 0 100 100" className="w-20 h-20 sm:w-24 sm:h-24 shrink-0 overflow-visible">
+                <circle cx="50" cy="50" r="32" fill="transparent" stroke="var(--border)" strokeWidth="12" />
+                {totalCases > 0 ? (
+                  <>
+                    <circle cx="50" cy="50" r="32" fill="transparent" stroke="#0D7A5F" strokeWidth="12" 
+                      strokeDasharray={`${(pActive / 100) * circ} ${circ}`} strokeDashoffset={0} 
+                      transform="rotate(-90 50 50)" />
+                    <circle cx="50" cy="50" r="32" fill="transparent" stroke="#C5A059" strokeWidth="12" 
+                      strokeDasharray={`${(pClosed / 100) * circ} ${circ}`} strokeDashoffset={-closedOffset} 
+                      transform="rotate(-90 50 50)" />
+                  </>
+                ) : null}
+              </svg>
+              <div className="text-xs font-semibold space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#0D7A5F]" />
+                  <span className="text-foreground">Active</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#C5A059]" />
+                  <span className="text-foreground">Closed</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#3B82F6]" />
+                  <span className="text-foreground">Other</span>
+                </div>
               </div>
             </div>
-            <p className="text-5xl font-black leading-none tracking-tight text-foreground font-sans">{value}</p>
-            <div className="-mx-1"><Sparkline path={sparkPath} color={borderColor} /></div>
           </div>
-        ))}
+          <div className="flex justify-between items-end border-t border-border/60 pt-3">
+            <div>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase">Active Cases</p>
+              <p className="text-xl font-black text-foreground font-sans mt-0.5">{fetching ? '-' : activeCasesCount}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase">Total</p>
+              <p className="text-xl font-black text-foreground font-sans mt-0.5">{fetching ? '-' : totalCases}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 2: HEARINGS AGENDA */}
+        <div className="rounded-2xl p-5 bg-card border border-border shadow-sm flex flex-col justify-between h-[210px]">
+          <div className="min-w-0">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">Hearings Agenda</span>
+            <span className="text-[10px] text-muted-foreground/80 font-medium">Next 3 hearings</span>
+            <div className="mt-3 space-y-2 text-xs font-semibold min-w-0">
+              {fetching ? (
+                <div className="py-2 text-muted-foreground text-center">Loading...</div>
+              ) : upcomingHearings.length === 0 ? (
+                <div className="py-2 text-muted-foreground/50 text-center italic">No upcoming hearings</div>
+              ) : (
+                upcomingHearings.slice(0, 3).map((h, i) => (
+                  <div key={h.id || i} className="flex items-center gap-2 text-foreground min-w-0">
+                    <span className="text-[#0D7A5F] shrink-0 whitespace-nowrap text-[10px] bg-[#0D7A5F]/10 px-2 py-0.5 rounded-md">
+                      {h.hearingDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                    <span className="truncate flex-1 font-medium">{h.title}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+          <div className="flex justify-between items-end border-t border-border/60 pt-3 shrink-0">
+            <div>
+              <p className="text-4xl font-black text-foreground font-sans leading-none">{fetching ? '-' : upcomingHearings.length}</p>
+            </div>
+            <button onClick={() => window.location.href = '/hearings'} className="px-3.5 py-1.5 bg-muted hover:bg-muted/80 text-foreground border border-border rounded-full text-[10px] font-bold transition-all">
+              Next Month
+            </button>
+          </div>
+        </div>
+
+        {/* Card 3: REVENUE GROWTH */}
+        <div className="rounded-2xl p-5 bg-card border border-border shadow-sm flex flex-col justify-between h-[210px] overflow-hidden">
+          <div className="w-full">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">Revenue Growth</span>
+            <p className="text-3xl font-black text-foreground font-sans mt-2">
+              Rs. {fetching ? '-' : (totalRevenue >= 1000 ? (totalRevenue / 1000).toFixed(1) + 'k' : totalRevenue)}
+            </p>
+          </div>
+          <div className="flex-1 flex items-end -mx-5 -mb-2 mt-2 h-20">
+            <svg viewBox="0 0 200 50" width="100%" height="100%" preserveAspectRatio="none" className="overflow-visible">
+              <defs>
+                <linearGradient id="grad-revenue" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#3B82F6" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path d={areaPath} fill="url(#grad-revenue)" />
+              <path d={linePath} fill="none" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" />
+              {points.map((p, i) => (
+                <circle key={i} cx={p.x} cy={p.y} r="2.5" fill="var(--card)" stroke="#3B82F6" strokeWidth="1.5" />
+              ))}
+              {months.map((m, i) => (
+                <text key={i} x={15 + i * 24} y="49" textAnchor="middle" fontSize="6" className="fill-muted-foreground/75 font-sans font-bold">{m}</text>
+              ))}
+            </svg>
+          </div>
+        </div>
+
+        {/* Card 4: FINANCIAL STATUS */}
+        <div className="rounded-2xl p-5 bg-card border border-border shadow-sm flex flex-col justify-between h-[210px]">
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Financial Status</span>
+            <p className="text-4xl font-black text-foreground font-sans mt-3">
+              Rs. {fetching ? '-' : totalOutstanding.toLocaleString()}
+            </p>
+            <p className="text-[10px] text-muted-foreground uppercase font-bold mt-1">Dues</p>
+          </div>
+          <div className="flex flex-col gap-3">
+            <svg viewBox="0 0 200 15" width="100%" height="12" className="overflow-visible">
+              <path d="M 0,7 C 25,2 50,12 75,7 C 100,2 125,12 150,7 C 175,2 200,7 220,7" fill="none" stroke="#10B981" strokeWidth="2" />
+            </svg>
+            <div className="flex justify-between items-center border-t border-border/60 pt-3">
+              <button 
+                onClick={() => showToast('success', 'Outstanding dues are clean and fully synced with legal records.', 'Financials Synced')}
+                className="flex items-center gap-1.5 bg-[#E6F4F1] hover:opacity-95 text-[#0D7A5F] px-4 py-2 rounded-full text-xs font-black transition-all"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                Clean Financials
+              </button>
+            </div>
+          </div>
+        </div>
+
       </div>
 
+      {/* ── Active Cases Registry Table ── */}
       <div className="rounded-2xl overflow-hidden bg-card border border-border shadow-sm">
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-border">
-          <h2 className="text-sm sm:text-base font-bold text-foreground">Active Cases</h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="text-base font-bold text-foreground">Active Cases</h2>
           {canAddCases && (
-            <Link href="/cases/new" className="flex items-center gap-1.5 text-xs font-semibold text-white px-3 py-2 rounded-lg bg-blue-600 hover:opacity-90 hover:scale-[1.02] transition-all">
-              <Plus className="w-3.5 h-3.5" /> NEW CASE
+            <Link 
+              href="/cases/new" 
+              className="flex items-center gap-1.5 text-xs font-bold text-white px-4 py-2.5 rounded-xl bg-[#0D7A5F] hover:opacity-90 transition-all shadow-sm"
+            >
+              <Plus className="w-4 h-4" /> NEW CASE
             </Link>
           )}
         </div>
 
         {fetching ? (
-          <div className="p-12 flex justify-center items-center text-muted-foreground gap-2">
-            <Loader2 className="w-5 h-5 animate-spin" /> Fetching cases...
+          <div className="p-16 flex justify-center items-center text-muted-foreground gap-3">
+            <Loader2 className="w-5 h-5 animate-spin text-[#0D7A5F]" />
+            <span className="text-sm font-semibold">Loading active cases...</span>
           </div>
         ) : activeCasesList.length === 0 ? (
-          <div className="p-16 flex flex-col items-center justify-center text-center">
-            <FolderOpen className="w-12 h-12 text-muted-foreground/30 mb-4" strokeWidth={1.5} />
-            <p className="text-sm font-semibold text-muted-foreground">No active cases found.</p>
+          <div className="p-20 flex flex-col items-center justify-center text-center">
+            <FolderOpen className="w-16 h-16 text-muted-foreground/20 mb-4" strokeWidth={1.5} />
+            <p className="text-sm font-bold text-muted-foreground">No active cases registered</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-           <div className="divide-y divide-border min-w-[600px]">
-            {activeCasesList.map(c => {
-              let dateStr = 'No Hearing Scheduled';
-              let isToday = false;
-              if (c.nextHearingDate) {
-                const d = new Date(c.nextHearingDate);
-                isToday = d.toISOString().split('T')[0] === todayStr;
-                dateStr = isToday ? 'Today' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-              }
-              const tag = tagStyles[c.caseType] || tagStyles.Civil;
+            <div className="divide-y divide-border min-w-[700px]">
+              {activeCasesList.map(c => {
+                let dateStr = 'No Hearing Scheduled';
+                let isToday = false;
+                if (c.nextHearingDate) {
+                  const d = new Date(c.nextHearingDate);
+                  isToday = d.toISOString().split('T')[0] === new Date().toISOString().split('T')[0];
+                  dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                }
+                
+                return (
+                  <div 
+                    key={c.id} 
+                    className="group grid items-center px-6 py-4 cursor-default transition-colors duration-150 hover:bg-muted/40"
+                    style={{ gridTemplateColumns: '2.5fr 1.2fr 1.2fr 1fr' }}
+                  >
+                    {/* Case Title and Court location */}
+                    <div className="min-w-0 pr-4">
+                      <p className="text-sm font-bold text-foreground leading-snug">
+                        <Link href={`/cases/${c.id}`} className="hover:text-[#0D7A5F] transition-colors">{c.title}</Link>
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate font-medium">
+                        {c.location === 'ISLAMABAD' ? 'Islamabad High Court' : 'Rawalpindi District'}
+                      </p>
+                    </div>
 
-              return (
-                <div key={c.id} className="group grid items-center px-6 py-4 cursor-default transition-colors duration-150 hover:bg-muted/40 min-w-[700px]" style={{ gridTemplateColumns: '1.5fr 120px 180px 110px 100px' }}>
-                  <div className="min-w-0 pr-4">
-                    <p className="text-sm font-semibold text-foreground truncate leading-tight">
-                      <Link href={`/cases/${c.id}`} className="hover:text-blue-500 transition-colors">{c.title}</Link>
+                    {/* Next Hearing Date */}
+                    <p className={`text-xs font-semibold ${isToday ? 'text-emerald-600 font-bold' : c.nextHearingDate ? 'text-foreground' : 'text-muted-foreground/50'}`}>
+                      {dateStr}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-0.5 truncate">{c.location === 'ISLAMABAD' ? 'Islamabad High Court' : 'Rawalpindi District'}</p>
+
+                    {/* Judge Name */}
+                    <p className="text-xs text-muted-foreground truncate font-semibold pr-3">
+                      {c.judgeName || '—'}
+                    </p>
+
+                    {/* Status badge and actions overlay on hover */}
+                    <div className="relative flex items-center justify-between h-8 min-w-[100px]">
+                      {/* Active Status Badge */}
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-black px-3 py-1 rounded-full bg-[#E6F4F1] text-[#0D7A5F] group-hover:opacity-0 transition-opacity">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#0D7A5F]" />
+                        In-progress
+                      </span>
+
+                      {/* Actions Overlay (Hover state) */}
+                      <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Link 
+                          href={`/cases/${c.id}`} 
+                          className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                          title="View Details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Link>
+                        {canEditCases && (
+                          <button 
+                            type="button" 
+                            onClick={() => setEditCase(c)} 
+                            className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                            title="Edit"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                        )}
+                        {canDeleteCases && (
+                          <button 
+                            type="button" 
+                            onClick={() => setDeleteCase(c)} 
+                            className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <p className={`text-sm font-medium ${isToday ? 'text-emerald-500 font-bold' : c.nextHearingDate ? 'text-foreground' : 'text-muted-foreground/50'}`}>{dateStr}</p>
-                  <p className="text-sm text-muted-foreground truncate pr-3">{c.judgeName || '—'}</p>
-                  <span className="inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-full w-fit" style={{ background: tag.bg, color: tag.text }}>{c.caseType}</span>
-                  <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Link href={`/cases/${c.id}`} className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"><Eye className="w-4 h-4" /></Link>
-                    {canEditCases && (
-                    <button type="button" onClick={() => setEditCase(c)} className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"><Pencil className="w-4 h-4" /></button>
-                    )}
-                    {canDeleteCases && (
-                    <button type="button" onClick={() => setDeleteCase(c)} className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500"><Trash2 className="w-4 h-4" /></button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-           </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

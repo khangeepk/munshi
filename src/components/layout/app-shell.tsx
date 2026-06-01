@@ -105,9 +105,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <footer className="w-full py-5 text-center mt-auto border-t border-border/20">
             <p className="text-xs font-semibold text-muted-foreground/60 tracking-wider">
               Designed and Developed by{' '}
-              <span className="text-primary/80 font-bold tracking-widest">SQ Tech</span>
+              <span className="text-[#0D7A5F] font-bold tracking-widest">SU TECH</span>
             </p>
           </footer>
+
         </main>
       </div>
     </div>

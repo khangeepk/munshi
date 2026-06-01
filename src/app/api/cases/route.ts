@@ -18,11 +18,14 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
 
-    const where: any = {};
+    const where: any = {
+      deletedAt: null,
+    };
     if (tenantId) where.tenantId = tenantId;
     if (status) where.status = status;
 
     const cases = await prisma.case.findMany({
+
       where,
       include: { 
         assignedTo: { select: { name: true, email: true } },

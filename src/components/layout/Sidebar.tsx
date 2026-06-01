@@ -90,7 +90,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
               className="text-[10px] opacity-40 mt-0.5 tracking-widest uppercase"
               style={{ color: 'var(--sidebar-foreground)' }}
             >
-              Legal CMS
+              LEGAL TETS
             </p>
           </div>
         </div>
@@ -121,23 +121,23 @@ export default function Sidebar({ onClose }: SidebarProps) {
           return (
             <Link key={href} href={href} onClick={onClose}
               className={cn('relative flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all duration-200 ease-out group overflow-hidden')}
-              style={isActive ? { background: 'linear-gradient(90deg, rgba(59,130,246,0.25) 0%, rgba(59,130,246,0.05) 100%)', boxShadow: 'inset 0 0 0 1px rgba(59,130,246,0.35)', color: '#FFFFFF' } : { color: 'var(--sidebar-foreground)' }}>
-              {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full" style={{ background: '#3B82F6', boxShadow: '0 0 8px rgba(59,130,246,0.8)' }} />}
-              <Icon className={cn('w-[18px] h-[18px] flex-shrink-0 transition-all duration-200', isActive ? 'text-blue-400' : 'opacity-60 group-hover:opacity-100')} />
+              style={isActive ? { background: 'linear-gradient(90deg, rgba(13,122,95,0.18) 0%, rgba(13,122,95,0.04) 100%)', boxShadow: 'inset 0 0 0 1px rgba(13,122,95,0.25)', color: '#0D7A5F' } : { color: 'var(--sidebar-foreground)' }}>
+              {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full" style={{ background: '#0D7A5F', boxShadow: '0 0 8px rgba(13,122,95,0.8)' }} />}
+              <Icon className={cn('w-[18px] h-[18px] flex-shrink-0 transition-all duration-200', isActive ? 'text-[#0D7A5F]' : 'opacity-60 group-hover:opacity-100')} style={isActive ? { color: '#0D7A5F' } : {}} />
               <span className="flex-1">{label}</span>
             </Link>
           );
         })}
 
-        <p className="px-3 pt-4 pb-2 text-[10px] font-semibold tracking-widest uppercase opacity-40" style={{ color: 'var(--sidebar-foreground)' }}>SQ Tech Modules</p>
+        <p className="px-3 pt-4 pb-2 text-[10px] font-semibold tracking-widest uppercase opacity-40" style={{ color: 'var(--sidebar-foreground)' }}>SO TECH MODULES</p>
         {sqTechItems.map(({ href, label, icon: Icon }) => {
           const isActive = pathname === href || pathname.startsWith(href);
           return (
             <Link key={href} href={href} onClick={onClose}
               className={cn('relative flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all duration-200 ease-out group overflow-hidden')}
-              style={isActive ? { background: 'linear-gradient(90deg, rgba(197,160,89,0.2) 0%, rgba(197,160,89,0.04) 100%)', boxShadow: 'inset 0 0 0 1px rgba(197,160,89,0.3)', color: '#FFFFFF' } : { color: 'var(--sidebar-foreground)' }}>
-              {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full" style={{ background: '#c5a059', boxShadow: '0 0 8px rgba(197,160,89,0.8)' }} />}
-              <Icon className={cn('w-[18px] h-[18px] flex-shrink-0 transition-all duration-200', isActive ? '' : 'opacity-60 group-hover:opacity-100')} style={isActive ? { color: '#c5a059' } : {}} />
+              style={isActive ? { background: 'linear-gradient(90deg, rgba(13,122,95,0.18) 0%, rgba(13,122,95,0.04) 100%)', boxShadow: 'inset 0 0 0 1px rgba(13,122,95,0.25)', color: '#0D7A5F' } : { color: 'var(--sidebar-foreground)' }}>
+              {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full" style={{ background: '#0D7A5F', boxShadow: '0 0 8px rgba(13,122,95,0.8)' }} />}
+              <Icon className={cn('w-[18px] h-[18px] flex-shrink-0 transition-all duration-200', isActive ? 'text-[#0D7A5F]' : 'opacity-60 group-hover:opacity-100')} style={isActive ? { color: '#0D7A5F' } : {}} />
               <span className="flex-1">{label}</span>
             </Link>
           );
@@ -150,7 +150,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
         <div className="px-5 py-3 text-center" style={{ borderTop: '1px solid var(--sidebar-border)' }}>
           <p className="text-[10px] font-semibold tracking-wider text-muted-foreground/60">
             Designed and Developed by <br />
-            <span className="text-primary/90 font-bold tracking-widest uppercase">SQ Tech</span>
+            <span className="text-[#0D7A5F] font-bold tracking-widest uppercase">SU TECH</span>
           </p>
         </div>
 
