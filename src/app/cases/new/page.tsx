@@ -351,8 +351,8 @@ export default function AddCase() {
           <Button
             type="submit"
             disabled={loading}
-            className="font-bold rounded-xl px-8 shadow-md hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-70 disabled:scale-100"
-            style={{ background: '#2563EB', color: '#fff' }}
+            className="font-bold rounded-xl px-8 shadow-md hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-70 disabled:scale-100 cursor-pointer"
+            style={{ background: 'var(--primary)', color: '#fff' }}
           >
             {loading ? (
               <>

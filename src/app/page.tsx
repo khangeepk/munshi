@@ -48,7 +48,7 @@ function Toast({ toast, onDismiss }: { toast: ToastState; onDismiss: () => void 
     return () => clearTimeout(t);
   }, [toast.id, onDismiss, toast.type]);
 
-  const bg = toast.type === 'success' ? 'bg-[#0D7A5F]' : toast.type === 'info' ? 'bg-blue-600' : 'bg-rose-600';
+  const bg = toast.type === 'success' ? 'bg-emerald-600' : toast.type === 'info' ? 'bg-primary' : 'bg-rose-600';
 
   return (
     <div className={`fixed bottom-6 right-6 z-[100] flex items-start gap-3 px-5 py-4 rounded-2xl shadow-2xl text-sm font-semibold animate-in slide-in-from-bottom-4 duration-300 text-white ${bg} max-w-sm`}>
@@ -123,7 +123,7 @@ function EditSideSheet({ caseData, onSave, onClose, saving }: any) {
   }, []);
 
   const set = (field: string) => (e: any) => setForm(p => ({ ...p, [field]: e.target.value }));
-  const inputCls = 'w-full bg-muted border rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#0D7A5F] outline-none transition-shadow';
+  const inputCls = 'w-full bg-muted border rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary outline-none transition-shadow';
   const labelCls = 'block text-xs font-semibold text-muted-foreground uppercase mb-1.5';
 
   return (
@@ -218,7 +218,7 @@ function EditSideSheet({ caseData, onSave, onClose, saving }: any) {
 
           <div className="pt-4 border-t flex justify-end gap-3 mt-4">
             <button type="button" onClick={onClose} disabled={saving} className="px-5 py-2.5 rounded-xl border hover:bg-muted text-sm font-semibold">Cancel</button>
-            <button type="submit" disabled={saving} className="px-6 py-2.5 bg-[#0D7A5F] hover:bg-[#0c6b53] text-white rounded-xl text-sm font-bold flex gap-2 items-center">
+            <button type="submit" disabled={saving} className="px-6 py-2.5 bg-primary hover:bg-primary/95 text-white rounded-xl text-sm font-bold flex gap-2 items-center cursor-pointer">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save
             </button>
           </div>
@@ -479,134 +479,147 @@ export default function Dashboard() {
       />
 
       {/* ── Metric Cards Grid ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 sm:gap-8">
         
         {/* Card 1: CASES PROPORTION */}
-        <div className="rounded-2xl p-5 bg-card border border-border shadow-sm flex flex-col justify-between h-[210px]">
+        <div className="rounded-2xl p-6 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between h-[230px]">
           <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Cases Proportion</span>
-            <div className="flex items-center gap-4 mt-3">
-              <svg viewBox="0 0 100 100" className="w-20 h-20 sm:w-24 sm:h-24 shrink-0 overflow-visible">
-                <circle cx="50" cy="50" r="32" fill="transparent" stroke="var(--border)" strokeWidth="12" />
-                {totalCases > 0 ? (
-                  <>
-                    <circle cx="50" cy="50" r="32" fill="transparent" stroke="#0D7A5F" strokeWidth="12" 
-                      strokeDasharray={`${(pActive / 100) * circ} ${circ}`} strokeDashoffset={0} 
-                      transform="rotate(-90 50 50)" />
-                    <circle cx="50" cy="50" r="32" fill="transparent" stroke="#C5A059" strokeWidth="12" 
-                      strokeDasharray={`${(pClosed / 100) * circ} ${circ}`} strokeDashoffset={-closedOffset} 
-                      transform="rotate(-90 50 50)" />
-                  </>
-                ) : null}
-              </svg>
-              <div className="text-xs font-semibold space-y-1.5">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 block mb-3">Cases Proportion</span>
+            <div className="flex items-center gap-6">
+              {/* Donut with middle text */}
+              <div className="relative flex items-center justify-center shrink-0 w-24 h-24 sm:w-28 sm:h-28">
+                <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
+                  <circle cx="50" cy="50" r="34" fill="transparent" stroke="var(--border)" strokeWidth="10" />
+                  {totalCases > 0 ? (
+                    <>
+                      <circle cx="50" cy="50" r="34" fill="transparent" stroke="var(--primary)" strokeWidth="10" 
+                        strokeDasharray={`${(pActive / 100) * circ} ${circ}`} strokeDashoffset={0} 
+                        transform="rotate(-90 50 50)" strokeLinecap="round" />
+                      <circle cx="50" cy="50" r="34" fill="transparent" stroke="#F59E0B" strokeWidth="10" 
+                        strokeDasharray={`${(pClosed / 100) * circ} ${circ}`} strokeDashoffset={-closedOffset} 
+                        transform="rotate(-90 50 50)" strokeLinecap="round" />
+                    </>
+                  ) : null}
+                </svg>
+                <div className="absolute flex flex-col items-center justify-center">
+                  <span className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white leading-none">{fetching ? '-' : totalCases}</span>
+                  <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">Total</span>
+                </div>
+              </div>
+
+              {/* Legends */}
+              <div className="text-xs font-semibold space-y-2">
                 <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#0D7A5F]" />
-                  <span className="text-foreground">Active</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-primary" />
+                  <span className="text-slate-600 dark:text-slate-300">Active</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#C5A059]" />
-                  <span className="text-foreground">Closed</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#3B82F6]" />
-                  <span className="text-foreground">Other</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]" />
+                  <span className="text-slate-600 dark:text-slate-300">Closed</span>
                 </div>
               </div>
             </div>
           </div>
-          <div className="flex justify-between items-end border-t border-border/60 pt-3">
+          <div className="flex justify-between items-end border-t border-slate-50 dark:border-slate-800/60 pt-3 shrink-0">
             <div>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase">Active Cases</p>
-              <p className="text-xl font-black text-foreground font-sans mt-0.5">{fetching ? '-' : activeCasesCount}</p>
+              <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Active Cases</p>
+              <p className="text-lg font-extrabold text-slate-800 dark:text-white mt-0.5">{fetching ? '-' : activeCasesCount}</p>
             </div>
             <div className="text-right">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase">Total</p>
-              <p className="text-xl font-black text-foreground font-sans mt-0.5">{fetching ? '-' : totalCases}</p>
+              <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Resolution</p>
+              <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{totalCases > 0 ? Math.round(pClosed) : 0}% Closed</p>
             </div>
           </div>
         </div>
 
         {/* Card 2: HEARINGS AGENDA */}
-        <div className="rounded-2xl p-5 bg-card border border-border shadow-sm flex flex-col justify-between h-[210px]">
+        <div className="rounded-2xl p-6 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between h-[230px]">
           <div className="min-w-0">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">Hearings Agenda</span>
-            <span className="text-[10px] text-muted-foreground/80 font-medium">Next 3 hearings</span>
-            <div className="mt-3 space-y-2 text-xs font-semibold min-w-0">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 block mb-1">Hearings Agenda</span>
+            <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">Next 3 Hearings</span>
+            <div className="mt-4 space-y-2.5 text-xs font-semibold min-w-0">
               {fetching ? (
-                <div className="py-2 text-muted-foreground text-center">Loading...</div>
+                <div className="py-2 text-slate-400 text-center animate-pulse">Loading...</div>
               ) : upcomingHearings.length === 0 ? (
-                <div className="py-2 text-muted-foreground/50 text-center italic">No upcoming hearings</div>
+                <div className="py-4 text-slate-400 dark:text-slate-500 text-center italic font-medium">No upcoming hearings</div>
               ) : (
                 upcomingHearings.slice(0, 3).map((h, i) => (
-                  <div key={h.id || i} className="flex items-center gap-2 text-foreground min-w-0">
-                    <span className="text-[#0D7A5F] shrink-0 whitespace-nowrap text-[10px] bg-[#0D7A5F]/10 px-2 py-0.5 rounded-md">
-                      {h.hearingDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  <div key={h.id || i} className="flex items-center gap-2.5 text-slate-800 dark:text-slate-200 min-w-0 leading-normal">
+                    <span className="text-primary shrink-0 whitespace-nowrap text-[9px] font-bold bg-primary/10 px-2 py-0.5 rounded-md">
+                      {h.hearingDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </span>
-                    <span className="truncate flex-1 font-medium">{h.title}</span>
+                    <span className="truncate flex-1 font-semibold text-slate-700 dark:text-slate-300">{h.title}</span>
                   </div>
                 ))
               )}
             </div>
           </div>
-          <div className="flex justify-between items-end border-t border-border/60 pt-3 shrink-0">
+          <div className="flex justify-between items-end border-t border-slate-50 dark:border-slate-800/60 pt-3 shrink-0">
             <div>
-              <p className="text-4xl font-black text-foreground font-sans leading-none">{fetching ? '-' : upcomingHearings.length}</p>
+              <p className="text-3xl font-black text-slate-800 dark:text-white leading-none">{fetching ? '-' : upcomingHearings.length}</p>
             </div>
-            <button onClick={() => window.location.href = '/hearings'} className="px-3.5 py-1.5 bg-muted hover:bg-muted/80 text-foreground border border-border rounded-full text-[10px] font-bold transition-all">
-              Next Month
+            <button onClick={() => window.location.href = '/hearings'} className="px-3.5 py-1.5 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200/60 dark:border-slate-700 rounded-full text-[10px] font-bold transition-all cursor-pointer">
+              View Diary
             </button>
           </div>
         </div>
 
         {/* Card 3: REVENUE GROWTH */}
-        <div className="rounded-2xl p-5 bg-card border border-border shadow-sm flex flex-col justify-between h-[210px] overflow-hidden">
+        <div className="rounded-2xl p-6 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between h-[230px] overflow-hidden">
           <div className="w-full">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">Revenue Growth</span>
-            <p className="text-3xl font-black text-foreground font-sans mt-2">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 block mb-1">Revenue Growth</span>
+            <p className="text-2xl font-black text-slate-800 dark:text-white tracking-tight mt-2.5">
               Rs. {fetching ? '-' : (totalRevenue >= 1000 ? (totalRevenue / 1000).toFixed(1) + 'k' : totalRevenue)}
             </p>
           </div>
-          <div className="flex-1 flex items-end -mx-5 -mb-2 mt-2 h-20">
+          <div className="flex-1 flex items-end -mx-6 -mb-3 mt-3 h-20">
             <svg viewBox="0 0 200 50" width="100%" height="100%" preserveAspectRatio="none" className="overflow-visible">
               <defs>
                 <linearGradient id="grad-revenue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#3B82F6" stopOpacity="0" />
+                  <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.2" />
+                  <stop offset="100%" stopColor="var(--primary)" stopOpacity="0" />
                 </linearGradient>
               </defs>
               <path d={areaPath} fill="url(#grad-revenue)" />
-              <path d={linePath} fill="none" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" />
+              <path d={linePath} fill="none" stroke="var(--primary)" strokeWidth="1.5" strokeLinecap="round" />
               {points.map((p, i) => (
-                <circle key={i} cx={p.x} cy={p.y} r="2.5" fill="var(--card)" stroke="#3B82F6" strokeWidth="1.5" />
+                <circle key={i} cx={p.x} cy={p.y} r="2" fill="var(--card)" stroke="var(--primary)" strokeWidth="1.5" />
               ))}
               {months.map((m, i) => (
-                <text key={i} x={15 + i * 24} y="49" textAnchor="middle" fontSize="6" className="fill-muted-foreground/75 font-sans font-bold">{m}</text>
+                <text key={i} x={15 + i * 24} y="49" textAnchor="middle" fontSize="5.5" className="fill-slate-400 dark:fill-slate-500 font-sans font-bold">{m}</text>
               ))}
             </svg>
           </div>
         </div>
 
         {/* Card 4: FINANCIAL STATUS */}
-        <div className="rounded-2xl p-5 bg-card border border-border shadow-sm flex flex-col justify-between h-[210px]">
+        <div className="rounded-2xl p-6 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between h-[230px]">
           <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Financial Status</span>
-            <p className="text-4xl font-black text-foreground font-sans mt-3">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 block mb-1">Financial Ledger</span>
+            <p className="text-2xl font-black text-slate-800 dark:text-white tracking-tight mt-2.5">
               Rs. {fetching ? '-' : totalOutstanding.toLocaleString()}
             </p>
-            <p className="text-[10px] text-muted-foreground uppercase font-bold mt-1">Dues</p>
+            <p className="text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold mt-0.5">Outstanding Dues</p>
           </div>
-          <div className="flex flex-col gap-3">
-            <svg viewBox="0 0 200 15" width="100%" height="12" className="overflow-visible">
-              <path d="M 0,7 C 25,2 50,12 75,7 C 100,2 125,12 150,7 C 175,2 200,7 220,7" fill="none" stroke="#10B981" strokeWidth="2" />
-            </svg>
-            <div className="flex justify-between items-center border-t border-border/60 pt-3">
+          <div className="flex flex-col gap-3.5">
+            {/* Progress bar ledger */}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex justify-between text-[9px] font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider">
+                <span>Collected ({Math.round(totalRevenue + totalOutstanding > 0 ? (totalRevenue / (totalRevenue + totalOutstanding)) * 100 : 0)}%)</span>
+                <span>Outstanding</span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden flex">
+                <div className="h-full bg-emerald-500" style={{ width: `${totalRevenue + totalOutstanding > 0 ? (totalRevenue / (totalRevenue + totalOutstanding)) * 100 : 0}%` }} />
+                <div className="h-full bg-amber-500" style={{ width: `${totalRevenue + totalOutstanding > 0 ? (totalOutstanding / (totalRevenue + totalOutstanding)) * 100 : 0}%` }} />
+              </div>
+            </div>
+            <div className="flex justify-between items-center border-t border-slate-50 dark:border-slate-800/60 pt-3">
               <button 
                 onClick={() => showToast('success', 'Outstanding dues are clean and fully synced with legal records.', 'Financials Synced')}
-                className="flex items-center gap-1.5 bg-[#E6F4F1] hover:opacity-95 text-[#0D7A5F] px-4 py-2 rounded-full text-xs font-black transition-all"
+                className="flex items-center gap-1.5 bg-primary/10 hover:opacity-95 text-primary px-3.5 py-1.5 rounded-full text-[10px] font-extrabold tracking-wider uppercase transition-all cursor-pointer"
               >
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                Clean Financials
+                Ledger Synced
               </button>
             </div>
           </div>
@@ -615,13 +628,13 @@ export default function Dashboard() {
       </div>
 
       {/* ── Active Cases Registry Table ── */}
-      <div className="rounded-2xl overflow-hidden bg-card border border-border shadow-sm">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h2 className="text-base font-bold text-foreground">Active Cases</h2>
+      <div className="rounded-2xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 shadow-sm">
+        <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80">
+          <h2 className="text-base font-extrabold text-slate-800 dark:text-white">Active Cases</h2>
           {canAddCases && (
             <Link 
               href="/cases/new" 
-              className="flex items-center gap-1.5 text-xs font-bold text-white px-4 py-2.5 rounded-xl bg-[#0D7A5F] hover:opacity-90 transition-all shadow-sm"
+              className="flex items-center gap-1.5 text-xs font-bold text-white px-4 py-2.5 rounded-xl bg-primary hover:opacity-90 transition-all shadow-sm"
             >
               <Plus className="w-4 h-4" /> NEW CASE
             </Link>
@@ -629,18 +642,27 @@ export default function Dashboard() {
         </div>
 
         {fetching ? (
-          <div className="p-16 flex justify-center items-center text-muted-foreground gap-3">
-            <Loader2 className="w-5 h-5 animate-spin text-[#0D7A5F]" />
+          <div className="p-16 flex justify-center items-center text-slate-400 gap-3">
+            <Loader2 className="w-5 h-5 animate-spin text-primary" />
             <span className="text-sm font-semibold">Loading active cases...</span>
           </div>
         ) : activeCasesList.length === 0 ? (
           <div className="p-20 flex flex-col items-center justify-center text-center">
-            <FolderOpen className="w-16 h-16 text-muted-foreground/20 mb-4" strokeWidth={1.5} />
-            <p className="text-sm font-bold text-muted-foreground">No active cases registered</p>
+            <FolderOpen className="w-16 h-16 text-slate-300 dark:text-slate-700 mb-4" strokeWidth={1.5} />
+            <p className="text-sm font-bold text-slate-500">No active cases registered</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <div className="divide-y divide-border min-w-[700px]">
+            {/* Header row */}
+            <div className="grid px-6 py-3 bg-slate-50/60 dark:bg-slate-950/40 border-b border-slate-100 dark:border-slate-800 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest min-w-[700px]"
+                 style={{ gridTemplateColumns: '2.5fr 1.2fr 1.2fr 1fr' }}>
+              <span>Case Title / Location</span>
+              <span>Next Hearing</span>
+              <span>Presiding Judge</span>
+              <span className="text-right pr-4">Status & Action</span>
+            </div>
+
+            <div className="divide-y divide-slate-100 dark:divide-slate-800/60 min-w-[700px]">
               {activeCasesList.map(c => {
                 let dateStr = 'No Hearing Scheduled';
                 let isToday = false;
@@ -653,42 +675,42 @@ export default function Dashboard() {
                 return (
                   <div 
                     key={c.id} 
-                    className="group grid items-center px-6 py-4 cursor-default transition-colors duration-150 hover:bg-muted/40"
+                    className="group grid items-center px-6 py-4.5 cursor-default transition-all duration-150 hover:bg-slate-50/40 dark:hover:bg-slate-950/20"
                     style={{ gridTemplateColumns: '2.5fr 1.2fr 1.2fr 1fr' }}
                   >
                     {/* Case Title and Court location */}
                     <div className="min-w-0 pr-4">
-                      <p className="text-sm font-bold text-foreground leading-snug">
-                        <Link href={`/cases/${c.id}`} className="hover:text-[#0D7A5F] transition-colors">{c.title}</Link>
+                      <p className="text-sm font-bold text-slate-850 dark:text-slate-200 leading-snug">
+                        <Link href={`/cases/${c.id}`} className="hover:text-primary transition-colors">{c.title}</Link>
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5 truncate font-medium">
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 font-semibold">
                         {c.location === 'ISLAMABAD' ? 'Islamabad High Court' : 'Rawalpindi District'}
                       </p>
                     </div>
 
                     {/* Next Hearing Date */}
-                    <p className={`text-xs font-semibold ${isToday ? 'text-emerald-600 font-bold' : c.nextHearingDate ? 'text-foreground' : 'text-muted-foreground/50'}`}>
+                    <p className={`text-xs font-bold ${isToday ? 'text-emerald-600 font-extrabold' : c.nextHearingDate ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400 dark:text-slate-600'}`}>
                       {dateStr}
                     </p>
 
                     {/* Judge Name */}
-                    <p className="text-xs text-muted-foreground truncate font-semibold pr-3">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate font-semibold pr-3">
                       {c.judgeName || '—'}
                     </p>
 
                     {/* Status badge and actions overlay on hover */}
-                    <div className="relative flex items-center justify-between h-8 min-w-[100px]">
+                    <div className="relative flex items-center justify-end h-8 min-w-[100px] text-right pr-4">
                       {/* Active Status Badge */}
-                      <span className="inline-flex items-center gap-1.5 text-[11px] font-black px-3 py-1 rounded-full bg-[#E6F4F1] text-[#0D7A5F] group-hover:opacity-0 transition-opacity">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#0D7A5F]" />
-                        In-progress
+                      <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold px-3 py-1 rounded-full bg-primary/10 text-primary group-hover:opacity-0 transition-opacity">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        Active
                       </span>
 
                       {/* Actions Overlay (Hover state) */}
-                      <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Link 
                           href={`/cases/${c.id}`} 
-                          className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                          className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
                           title="View Details"
                         >
                           <Eye className="w-4 h-4" />
@@ -697,7 +719,7 @@ export default function Dashboard() {
                           <button 
                             type="button" 
                             onClick={() => setEditCase(c)} 
-                            className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                            className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
                             title="Edit"
                           >
                             <Pencil className="w-4 h-4" />
@@ -707,7 +729,7 @@ export default function Dashboard() {
                           <button 
                             type="button" 
                             onClick={() => setDeleteCase(c)} 
-                            className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600"
+                            className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-500/10"
                             title="Delete"
                           >
                             <Trash2 className="w-4 h-4" />

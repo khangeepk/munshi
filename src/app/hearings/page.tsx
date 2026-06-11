@@ -110,12 +110,12 @@ export default function MyHearingsPage() {
           role="tab"
           aria-selected={tab === 'upcoming'}
           onClick={() => setTab('upcoming')}
-          className={`flex-1 sm:flex-none rounded-xl px-5 py-2.5 text-sm font-bold transition-all ${
+          className={`flex-1 sm:flex-none rounded-xl px-5 py-2.5 text-sm font-bold transition-all cursor-pointer ${
             tab === 'upcoming'
               ? 'text-primary-foreground shadow-md'
               : 'text-muted-foreground hover:text-foreground'
           }`}
-          style={tab === 'upcoming' ? { background: '#2563EB' } : {}}
+          style={tab === 'upcoming' ? { background: 'var(--primary)' } : {}}
         >
           Upcoming Hearings
           <span className="ml-2 text-[11px] font-semibold opacity-80">({upcoming.length})</span>
@@ -125,12 +125,12 @@ export default function MyHearingsPage() {
           role="tab"
           aria-selected={tab === 'past'}
           onClick={() => setTab('past')}
-          className={`flex-1 sm:flex-none rounded-xl px-5 py-2.5 text-sm font-bold transition-all ${
+          className={`flex-1 sm:flex-none rounded-xl px-5 py-2.5 text-sm font-bold transition-all cursor-pointer ${
             tab === 'past'
               ? 'text-primary-foreground shadow-md'
               : 'text-muted-foreground hover:text-foreground'
           }`}
-          style={tab === 'past' ? { background: '#2563EB' } : {}}
+          style={tab === 'past' ? { background: 'var(--primary)' } : {}}
         >
           Hearing History
           <span className="ml-2 text-[11px] font-semibold opacity-80">({past.length})</span>
@@ -200,7 +200,7 @@ function HearingTimelineCard({
 
   const dotColor =
     tab === 'upcoming'
-      ? 'bg-blue-600 ring-blue-600/25'
+      ? 'bg-primary ring-primary/25'
       : 'bg-slate-500 ring-slate-500/20 dark:bg-slate-400';
 
   return (

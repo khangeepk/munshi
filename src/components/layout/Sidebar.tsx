@@ -81,16 +81,16 @@ export default function Sidebar({ onClose }: SidebarProps) {
         style={{ borderBottom: '1px solid var(--sidebar-border)' }}
       >
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shadow-lg shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-md shrink-0">
             <Scale className="w-4 h-4 text-white" />
           </div>
           <div className="min-w-0">
-            <span className="font-bold text-white text-sm tracking-wide block leading-none">LawyerSys</span>
+            <span className="font-bold text-foreground dark:text-white text-sm tracking-wide block leading-none">LawyerSys</span>
             <p
-              className="text-[10px] opacity-40 mt-0.5 tracking-widest uppercase"
+              className="text-[10px] opacity-60 mt-0.5 tracking-widest uppercase"
               style={{ color: 'var(--sidebar-foreground)' }}
             >
-              LEGAL TETS
+              LEGAL TECH
             </p>
           </div>
         </div>
@@ -99,7 +99,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
           <button
             type="button"
             onClick={onClose}
-            className="lg:hidden flex items-center justify-center w-8 h-8 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors shrink-0"
+            className="lg:hidden flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
             aria-label="Close menu"
           >
             <X className="w-4 h-4" />
@@ -110,7 +110,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
       {/* ── Navigation ── */}
       <nav className="flex-1 px-3 py-5 space-y-0.5 overflow-y-auto">
         <p
-          className="px-3 pb-3 text-[10px] font-semibold tracking-widest uppercase opacity-40"
+          className="px-3 pb-3 text-[10px] font-semibold tracking-widest uppercase opacity-60"
           style={{ color: 'var(--sidebar-foreground)' }}
         >
           Main Menu
@@ -120,24 +120,24 @@ export default function Sidebar({ onClose }: SidebarProps) {
           const isActive = pathname === href;
           return (
             <Link key={href} href={href} onClick={onClose}
-              className={cn('relative flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all duration-200 ease-out group overflow-hidden')}
-              style={isActive ? { background: 'linear-gradient(90deg, rgba(13,122,95,0.18) 0%, rgba(13,122,95,0.04) 100%)', boxShadow: 'inset 0 0 0 1px rgba(13,122,95,0.25)', color: '#0D7A5F' } : { color: 'var(--sidebar-foreground)' }}>
-              {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full" style={{ background: '#0D7A5F', boxShadow: '0 0 8px rgba(13,122,95,0.8)' }} />}
-              <Icon className={cn('w-[18px] h-[18px] flex-shrink-0 transition-all duration-200', isActive ? 'text-[#0D7A5F]' : 'opacity-60 group-hover:opacity-100')} style={isActive ? { color: '#0D7A5F' } : {}} />
+              className={cn('relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 ease-in-out group')}
+              style={isActive ? { background: 'var(--sidebar-accent)', color: 'var(--primary)' } : { color: 'var(--sidebar-foreground)' }}>
+              {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full" style={{ background: 'var(--primary)' }} />}
+              <Icon className={cn('w-[18px] h-[18px] flex-shrink-0 transition-all duration-150', isActive ? 'text-primary' : 'opacity-60 group-hover:opacity-100 group-hover:text-foreground')} />
               <span className="flex-1">{label}</span>
             </Link>
           );
         })}
 
-        <p className="px-3 pt-4 pb-2 text-[10px] font-semibold tracking-widest uppercase opacity-40" style={{ color: 'var(--sidebar-foreground)' }}>SO TECH MODULES</p>
+        <p className="px-3 pt-4 pb-2 text-[10px] font-semibold tracking-widest uppercase opacity-60" style={{ color: 'var(--sidebar-foreground)' }}>SO TECH MODULES</p>
         {sqTechItems.map(({ href, label, icon: Icon }) => {
           const isActive = pathname === href || pathname.startsWith(href);
           return (
             <Link key={href} href={href} onClick={onClose}
-              className={cn('relative flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all duration-200 ease-out group overflow-hidden')}
-              style={isActive ? { background: 'linear-gradient(90deg, rgba(13,122,95,0.18) 0%, rgba(13,122,95,0.04) 100%)', boxShadow: 'inset 0 0 0 1px rgba(13,122,95,0.25)', color: '#0D7A5F' } : { color: 'var(--sidebar-foreground)' }}>
-              {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full" style={{ background: '#0D7A5F', boxShadow: '0 0 8px rgba(13,122,95,0.8)' }} />}
-              <Icon className={cn('w-[18px] h-[18px] flex-shrink-0 transition-all duration-200', isActive ? 'text-[#0D7A5F]' : 'opacity-60 group-hover:opacity-100')} style={isActive ? { color: '#0D7A5F' } : {}} />
+              className={cn('relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 ease-in-out group')}
+              style={isActive ? { background: 'var(--sidebar-accent)', color: 'var(--primary)' } : { color: 'var(--sidebar-foreground)' }}>
+              {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full" style={{ background: 'var(--primary)' }} />}
+              <Icon className={cn('w-[18px] h-[18px] flex-shrink-0 transition-all duration-150', isActive ? 'text-primary' : 'opacity-60 group-hover:opacity-100 group-hover:text-foreground')} />
               <span className="flex-1">{label}</span>
             </Link>
           );
@@ -150,7 +150,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
         <div className="px-5 py-3 text-center" style={{ borderTop: '1px solid var(--sidebar-border)' }}>
           <p className="text-[10px] font-semibold tracking-wider text-muted-foreground/60">
             Designed and Developed by <br />
-            <span className="text-[#0D7A5F] font-bold tracking-widest uppercase">SU TECH</span>
+            <span className="text-primary font-bold tracking-widest uppercase">SU TECH</span>
           </p>
         </div>
 
@@ -163,15 +163,15 @@ export default function Sidebar({ onClose }: SidebarProps) {
               src={avatarSrc}
               alt=""
               className="w-9 h-9 rounded-full border-2 object-cover shrink-0"
-              style={{ borderColor: 'rgba(59,130,246,0.5)' }}
+              style={{ borderColor: 'var(--primary)' }}
             />
             <div className="overflow-hidden min-w-0 flex-1">
-              <p className="text-xs font-semibold text-white truncate">{user?.name ?? 'Account'}</p>
+              <p className="text-xs font-semibold text-foreground dark:text-white truncate">{user?.name ?? 'Account'}</p>
               <span
                 className={`inline-block mt-0.5 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                   user?.role === 'SUPER_ADMIN' || user?.role === 'TENANT_ADMIN'
-                    ? 'bg-blue-500/20 text-blue-300'
-                    : 'bg-amber-500/20 text-amber-300'
+                    ? 'bg-primary/10 text-primary'
+                    : 'bg-amber-500/25 text-amber-600 dark:text-amber-300'
                 }`}
               >
                 {user ? roleLabel(user.role) : '—'}
@@ -181,9 +181,9 @@ export default function Sidebar({ onClose }: SidebarProps) {
           <button
             type="button"
             onClick={() => void handleLogout()}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold text-white/90 hover:bg-white/10 transition-colors border border-white/10 active:scale-95"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold text-foreground/80 dark:text-white/90 hover:bg-muted border border-border transition-colors active:scale-95 cursor-pointer"
           >
-            <LogOut className="w-3.5 h-3.5" />
+            <LogOut className="w-3.5 h-3.5 text-rose-500" />
             Sign out
           </button>
         </div>

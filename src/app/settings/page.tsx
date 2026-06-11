@@ -385,10 +385,10 @@ export default function SettingsPage() {
         <button
           type="button"
           onClick={() => setTab('profile')}
-          className={`rounded-xl px-4 py-2.5 text-sm font-bold flex items-center gap-2 transition-all ${
+          className={`rounded-xl px-4 py-2.5 text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
             tab === 'profile' ? 'text-primary-foreground shadow-md' : 'text-muted-foreground'
           }`}
-          style={tab === 'profile' ? { background: '#2563EB' } : {}}
+          style={tab === 'profile' ? { background: 'var(--primary)' } : {}}
         >
           <User className="w-4 h-4" />
           Profile &amp; Security
@@ -397,10 +397,10 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={() => setTab('users')}
-            className={`rounded-xl px-4 py-2.5 text-sm font-bold flex items-center gap-2 transition-all ${
+            className={`rounded-xl px-4 py-2.5 text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
               tab === 'users' ? 'text-primary-foreground shadow-md' : 'text-muted-foreground'
             }`}
-            style={tab === 'users' ? { background: '#2563EB' } : {}}
+            style={tab === 'users' ? { background: 'var(--primary)' } : {}}
           >
             <Shield className="w-4 h-4" />
             User Management
@@ -445,7 +445,7 @@ export default function SettingsPage() {
               </div>
               <div className="flex-1 space-y-3">
                 <div className="flex flex-wrap gap-2">
-                  <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white bg-blue-600 hover:opacity-95">
+                  <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white bg-primary hover:opacity-95 cursor-pointer">
                     <input type="file" accept="image/*" className="hidden" onChange={onAvatarFile} disabled={savingAvatar} />
                     Upload image
                   </label>
@@ -495,7 +495,7 @@ export default function SettingsPage() {
                 type="button"
                 onClick={() => void saveProfile()}
                 disabled={savingProfile}
-                className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-blue-600 hover:opacity-95 disabled:opacity-50 flex items-center gap-2"
+                className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-primary hover:opacity-95 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
               >
                 {savingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 Save name
@@ -792,7 +792,7 @@ export default function SettingsPage() {
               type="button"
               onClick={() => void addUser()}
               disabled={addingUser || !newEmail || !newName || newUserPassword.length < 8}
-              className="mt-4 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-blue-600 hover:opacity-95 disabled:opacity-50 flex items-center gap-2"
+              className="mt-4 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-primary hover:opacity-95 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
             >
               {addingUser ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
               Create user

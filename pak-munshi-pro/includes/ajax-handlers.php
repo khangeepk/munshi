@@ -1,12 +1,12 @@
 <?php
 /**
- * All AJAX Endpoints — Secured with nonce + capability checks
- * Pak-Munshi Pro — Designed and Developed by Sikandar Hayat Baba
+ * All AJAX Endpoints for Lawyer Case Management System
+ * Designed and Developed by Sami Khan - SQ Tech
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-// ─── Helper ──────────────────────────────────────────────────────────────────
+// ─── Helper: Verify request authority and security nonce ──────────────────────
 function munshi_verify_request() {
     check_ajax_referer( 'munshi_nonce', 'nonce' );
     if ( ! current_user_can( 'manage_options' ) ) {
@@ -15,228 +15,251 @@ function munshi_verify_request() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PROPERTIES
+// 1. DASHBOARD INITIALIZATION
 // ═══════════════════════════════════════════════════════════════════════════════
-
-add_action( 'wp_ajax_munshi_get_properties',    'munshi_get_properties' );
-add_action( 'wp_ajax_munshi_save_property',     'munshi_save_property' );
-add_action( 'wp_ajax_munshi_delete_property',   'munshi_delete_property' );
-add_action( 'wp_ajax_munshi_get_units',         'munshi_get_units' );
-add_action( 'wp_ajax_munshi_save_unit',         'munshi_save_unit' );
-add_action( 'wp_ajax_munshi_delete_unit',       'munshi_delete_unit' );
-
-function munshi_get_properties() {
+add_action( 'wp_ajax_munshi_dashboard_init', 'munshi_dashboard_init' );
+function munshi_dashboard_init() {
     munshi_verify_request();
     global $wpdb;
-    $props = $wpdb->get_results(
-        "SELECT p.*, 
-            COUNT(u.id) as total_units,
-            SUM(CASE WHEN u.status='Occupied' THEN 1 ELSE 0 END) as occupied_units,
-            SUM(CASE WHEN u.status='Vacant'   THEN 1 ELSE 0 END) as vacant_units
-         FROM {$wpdb->prefix}munshi_properties p
-         LEFT JOIN {$wpdb->prefix}munshi_units u ON u.property_id = p.id
-         GROUP BY p.id
-         ORDER BY p.name ASC"
+
+    // Fetch KPIs
+    $kpi = $wpdb->get_row(
+        "SELECT 
+            (SELECT COUNT(*) FROM {$wpdb->prefix}munshi_cases WHERE status != 'CLOSED') as active_cases,
+            (SELECT COUNT(*) FROM {$wpdb->prefix}munshi_hearings WHERE status='SCHEDULED') as pending_hearings,
+            (SELECT COUNT(*) FROM {$wpdb->prefix}munshi_clients) as clients,
+            (SELECT COALESCE(SUM(balance),0) FROM {$wpdb->prefix}munshi_invoices WHERE status IN ('Unpaid','Partial')) as total_dues,
+            (SELECT COALESCE(SUM(amount),0) FROM {$wpdb->prefix}munshi_payments WHERE MONTH(paid_date)=MONTH(NOW()) AND YEAR(paid_date)=YEAR(NOW())) as this_month_revenue"
     );
-    wp_send_json_success( $props );
-}
 
-function munshi_save_property() {
-    munshi_verify_request();
-    global $wpdb;
-    $id   = intval( $_POST['id'] ?? 0 );
-    $data = [
-        'name'         => sanitize_text_field( $_POST['name'] ),
-        'address'      => sanitize_textarea_field( $_POST['address'] ),
-        'type'         => sanitize_text_field( $_POST['type'] ?? 'Residential' ),
-        'total_floors' => intval( $_POST['total_floors'] ?? 1 ),
-        'description'  => sanitize_textarea_field( $_POST['description'] ?? '' ),
-        'status'       => sanitize_text_field( $_POST['status'] ?? 'Active' ),
-    ];
-    if ( ! $data['name'] || ! $data['address'] ) {
-        wp_send_json_error( 'Name and address are required.' );
-    }
-    if ( $id ) {
-        $wpdb->update( "{$wpdb->prefix}munshi_properties", $data, [ 'id' => $id ] );
-    } else {
-        $wpdb->insert( "{$wpdb->prefix}munshi_properties", $data );
-        $id = $wpdb->insert_id;
-    }
-    wp_send_json_success( [ 'id' => $id, 'message' => 'Property saved successfully.' ] );
-}
-
-function munshi_delete_property() {
-    munshi_verify_request();
-    global $wpdb;
-    $id = intval( $_POST['id'] ?? 0 );
-    // Check for active tenants
-    $tenants = $wpdb->get_var( $wpdb->prepare(
-        "SELECT COUNT(*) FROM {$wpdb->prefix}munshi_tenants t
-         JOIN {$wpdb->prefix}munshi_units u ON u.id = t.unit_id
-         WHERE u.property_id = %d AND t.status = 'Active'", $id
-    ));
-    if ( $tenants > 0 ) {
-        wp_send_json_error( 'Cannot delete: Property has active tenants.' );
-    }
-    $wpdb->delete( "{$wpdb->prefix}munshi_units",     [ 'property_id' => $id ] );
-    $wpdb->delete( "{$wpdb->prefix}munshi_properties", [ 'id' => $id ] );
-    wp_send_json_success( 'Property deleted.' );
-}
-
-function munshi_get_units() {
-    munshi_verify_request();
-    global $wpdb;
-    $property_id = intval( $_POST['property_id'] ?? 0 );
-    $where = $property_id ? $wpdb->prepare( 'WHERE u.property_id = %d', $property_id ) : '';
-    $units = $wpdb->get_results(
-        "SELECT u.*, p.name as property_name, t.full_name as tenant_name, t.id as tenant_id
-         FROM {$wpdb->prefix}munshi_units u
-         LEFT JOIN {$wpdb->prefix}munshi_properties p ON p.id = u.property_id
-         LEFT JOIN {$wpdb->prefix}munshi_tenants t ON t.unit_id = u.id AND t.status = 'Active'
-         $where ORDER BY p.name, u.floor, u.unit_number"
+    // Fetch Recent Payments
+    $recent_payments = $wpdb->get_results(
+        "SELECT p.*, i.invoice_number, c.name as client_name
+         FROM {$wpdb->prefix}munshi_payments p
+         JOIN {$wpdb->prefix}munshi_invoices i ON i.id = p.invoice_id
+         JOIN {$wpdb->prefix}munshi_clients c ON c.id = i.client_id
+         ORDER BY p.created_at DESC LIMIT 5"
     );
-    wp_send_json_success( $units );
-}
 
-function munshi_save_unit() {
-    munshi_verify_request();
-    global $wpdb;
-    $id   = intval( $_POST['id'] ?? 0 );
-    $data = [
-        'property_id'     => intval( $_POST['property_id'] ),
-        'unit_number'     => sanitize_text_field( $_POST['unit_number'] ),
-        'floor'           => intval( $_POST['floor'] ?? 0 ),
-        'unit_type'       => sanitize_text_field( $_POST['unit_type'] ?? 'Flat' ),
-        'area_sqft'       => floatval( $_POST['area_sqft'] ?? 0 ),
-        'rent_amount'     => floatval( $_POST['rent_amount'] ?? 0 ),
-        'maintenance_fee' => floatval( $_POST['maintenance_fee'] ?? 0 ),
-        'water_charges'   => floatval( $_POST['water_charges'] ?? 500 ),
-        'status'          => sanitize_text_field( $_POST['status'] ?? 'Vacant' ),
-        'notes'           => sanitize_textarea_field( $_POST['notes'] ?? '' ),
-    ];
-    if ( $id ) {
-        $wpdb->update( "{$wpdb->prefix}munshi_units", $data, [ 'id' => $id ] );
-    } else {
-        $wpdb->insert( "{$wpdb->prefix}munshi_units", $data );
-        $id = $wpdb->insert_id;
-    }
-    wp_send_json_success( [ 'id' => $id, 'message' => 'Unit saved.' ] );
-}
-
-function munshi_delete_unit() {
-    munshi_verify_request();
-    global $wpdb;
-    $id = intval( $_POST['id'] ?? 0 );
-    $active = $wpdb->get_var( $wpdb->prepare(
-        "SELECT COUNT(*) FROM {$wpdb->prefix}munshi_tenants WHERE unit_id = %d AND status = 'Active'", $id
-    ));
-    if ( $active ) wp_send_json_error( 'Unit has an active tenant.' );
-    $wpdb->delete( "{$wpdb->prefix}munshi_units", [ 'id' => $id ] );
-    wp_send_json_success( 'Unit deleted.' );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// TENANTS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-add_action( 'wp_ajax_munshi_get_tenants',   'munshi_get_tenants' );
-add_action( 'wp_ajax_munshi_save_tenant',   'munshi_save_tenant' );
-add_action( 'wp_ajax_munshi_delete_tenant', 'munshi_delete_tenant' );
-
-function munshi_get_tenants() {
-    munshi_verify_request();
-    global $wpdb;
-    $tenants = $wpdb->get_results(
-        "SELECT t.*, u.unit_number, u.rent_amount, p.name as property_name
-         FROM {$wpdb->prefix}munshi_tenants t
-         JOIN {$wpdb->prefix}munshi_units u ON u.id = t.unit_id
-         JOIN {$wpdb->prefix}munshi_properties p ON p.id = u.property_id
-         ORDER BY t.full_name ASC"
+    // Fetch Upcoming Hearings
+    $upcoming_hearings = $wpdb->get_results(
+        "SELECT h.*, c.case_title, c.case_number
+         FROM {$wpdb->prefix}munshi_hearings h
+         JOIN {$wpdb->prefix}munshi_cases c ON c.id = h.case_id
+         WHERE h.hearing_date >= CURDATE()
+         ORDER BY h.hearing_date ASC, h.hearing_time ASC LIMIT 5"
     );
-    // Flag agreements expiring within 30 days
-    $now = time();
-    foreach ( $tenants as &$t ) {
-        $end   = $t->agreement_end ? strtotime( $t->agreement_end ) : null;
-        $t->days_to_expire = $end ? round( ( $end - $now ) / 86400 ) : null;
-        $t->expiry_alert   = ( $end && $end <= strtotime( '+30 days' ) && $end >= $now );
-    }
-    wp_send_json_success( $tenants );
-}
 
-function munshi_save_tenant() {
-    munshi_verify_request();
-    global $wpdb;
-    $id   = intval( $_POST['id'] ?? 0 );
-    $data = [
-        'unit_id'          => intval( $_POST['unit_id'] ),
-        'full_name'        => sanitize_text_field( $_POST['full_name'] ),
-        'father_name'      => sanitize_text_field( $_POST['father_name'] ?? '' ),
-        'cnic'             => sanitize_text_field( $_POST['cnic'] ?? '' ),
-        'phone'            => sanitize_text_field( $_POST['phone'] ),
-        'whatsapp'         => sanitize_text_field( $_POST['whatsapp'] ?? '' ),
-        'email'            => sanitize_email( $_POST['email'] ?? '' ),
-        'permanent_address'=> sanitize_textarea_field( $_POST['permanent_address'] ?? '' ),
-        'occupation'       => sanitize_text_field( $_POST['occupation'] ?? '' ),
-        'family_members'   => intval( $_POST['family_members'] ?? 1 ),
-        'security_deposit' => floatval( $_POST['security_deposit'] ?? 0 ),
-        'agreement_start'  => sanitize_text_field( $_POST['agreement_start'] ),
-        'agreement_end'    => sanitize_text_field( $_POST['agreement_end'] ?? '' ) ?: null,
-        'advance_months'   => intval( $_POST['advance_months'] ?? 0 ),
-        'status'           => sanitize_text_field( $_POST['status'] ?? 'Active' ),
-        'notes'            => sanitize_textarea_field( $_POST['notes'] ?? '' ),
-    ];
-    if ( $id ) {
-        $wpdb->update( "{$wpdb->prefix}munshi_tenants", $data, [ 'id' => $id ] );
-    } else {
-        $wpdb->insert( "{$wpdb->prefix}munshi_tenants", $data );
-        $id = $wpdb->insert_id;
-        // Mark unit as Occupied
-        $wpdb->update( "{$wpdb->prefix}munshi_units", [ 'status' => 'Occupied' ], [ 'id' => $data['unit_id'] ] );
-    }
-    wp_send_json_success( [ 'id' => $id, 'message' => 'Tenant saved.' ] );
-}
-
-function munshi_delete_tenant() {
-    munshi_verify_request();
-    global $wpdb;
-    $id = intval( $_POST['id'] ?? 0 );
-    $tenant = $wpdb->get_row( $wpdb->prepare(
-        "SELECT * FROM {$wpdb->prefix}munshi_tenants WHERE id = %d", $id
-    ));
-    if ( ! $tenant ) wp_send_json_error( 'Tenant not found.' );
-    $wpdb->delete( "{$wpdb->prefix}munshi_tenants", [ 'id' => $id ] );
-    // Mark unit as Vacant
-    $wpdb->update( "{$wpdb->prefix}munshi_units", [ 'status' => 'Vacant' ], [ 'id' => $tenant->unit_id ] );
-    wp_send_json_success( 'Tenant removed.' );
-}
-
-// ─── Document Upload ──────────────────────────────────────────────────────────
-add_action( 'wp_ajax_munshi_upload_document', 'munshi_upload_document' );
-function munshi_upload_document() {
-    munshi_verify_request();
-    if ( empty( $_FILES['file'] ) ) wp_send_json_error( 'No file uploaded.' );
-    require_once ABSPATH . 'wp-admin/includes/file.php';
-    require_once ABSPATH . 'wp-admin/includes/media.php';
-    require_once ABSPATH . 'wp-admin/includes/image.php';
-    $attachment_id = media_handle_upload( 'file', 0 );
-    if ( is_wp_error( $attachment_id ) ) wp_send_json_error( $attachment_id->get_error_message() );
-    global $wpdb;
-    $wpdb->insert( "{$wpdb->prefix}munshi_documents", [
-        'tenant_id' => intval( $_POST['tenant_id'] ),
-        'doc_type'  => sanitize_text_field( $_POST['doc_type'] ?? 'CNIC' ),
-        'file_name' => basename( get_attached_file( $attachment_id ) ),
-        'file_url'  => wp_get_attachment_url( $attachment_id ),
-    ]);
-    wp_send_json_success( [
-        'doc_id'   => $wpdb->insert_id,
-        'file_url' => wp_get_attachment_url( $attachment_id ),
+    wp_send_json_success([
+        'kpi'             => $kpi,
+        'recent_payments' => $recent_payments,
+        'upcoming_dues'   => $upcoming_hearings, // mapped parameter name for JS compatibility
+        'site_name'       => get_bloginfo('name'),
+        'site_url'        => home_url(),
     ]);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// INVOICES & BILLING ENGINE
+// 2. CLIENTS SECTION
 // ═══════════════════════════════════════════════════════════════════════════════
+add_action( 'wp_ajax_munshi_get_clients',   'munshi_get_clients' );
+add_action( 'wp_ajax_munshi_save_client',   'munshi_save_client' );
+add_action( 'wp_ajax_munshi_delete_client', 'munshi_delete_client' );
 
+function munshi_get_clients() {
+    munshi_verify_request();
+    global $wpdb;
+    $clients = $wpdb->get_results(
+        "SELECT c.*, 
+            (SELECT COUNT(*) FROM {$wpdb->prefix}munshi_cases WHERE client_id = c.id) as total_cases,
+            (SELECT COUNT(*) FROM {$wpdb->prefix}munshi_cases WHERE client_id = c.id AND status = 'ONGOING') as active_cases
+         FROM {$wpdb->prefix}munshi_clients c
+         ORDER BY c.name ASC"
+    );
+    wp_send_json_success( $clients );
+}
+
+function munshi_save_client() {
+    munshi_verify_request();
+    global $wpdb;
+    $id   = intval( $_POST['id'] ?? 0 );
+    $data = [
+        'name'     => sanitize_text_field( $_POST['name'] ),
+        'email'    => sanitize_email( $_POST['email'] ?? '' ),
+        'phone'    => sanitize_text_field( $_POST['phone'] ),
+        'cnic'     => sanitize_text_field( $_POST['cnic'] ?? '' ),
+        'address'  => sanitize_textarea_field( $_POST['address'] ?? '' ),
+        'whatsapp' => sanitize_text_field( $_POST['whatsapp'] ?? '' ),
+        'notes'    => sanitize_textarea_field( $_POST['notes'] ?? '' ),
+    ];
+
+    if ( empty($data['name']) || empty($data['phone']) ) {
+        wp_send_json_error( 'Name and Phone are required.' );
+    }
+
+    if ( $id ) {
+        $wpdb->update( "{$wpdb->prefix}munshi_clients", $data, [ 'id' => $id ] );
+    } else {
+        $wpdb->insert( "{$wpdb->prefix}munshi_clients", $data );
+        $id = $wpdb->insert_id;
+    }
+    wp_send_json_success( [ 'id' => $id, 'message' => 'Client saved successfully.' ] );
+}
+
+function munshi_delete_client() {
+    munshi_verify_request();
+    global $wpdb;
+    $id = intval( $_POST['id'] ?? 0 );
+    
+    // Check for active cases
+    $cases = $wpdb->get_var( $wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->prefix}munshi_cases WHERE client_id = %d AND status != 'CLOSED'", $id
+    ));
+    if ( $cases > 0 ) {
+        wp_send_json_error( 'Cannot delete: Client has active court cases.' );
+    }
+    
+    $wpdb->delete( "{$wpdb->prefix}munshi_clients", [ 'id' => $id ] );
+    wp_send_json_success( 'Client deleted.' );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 3. CASES SECTION
+// ═══════════════════════════════════════════════════════════════════════════════
+add_action( 'wp_ajax_munshi_get_cases',   'munshi_get_cases' );
+add_action( 'wp_ajax_munshi_save_case',   'munshi_save_case' );
+add_action( 'wp_ajax_munshi_delete_case', 'munshi_delete_case' );
+
+function munshi_get_cases() {
+    munshi_verify_request();
+    global $wpdb;
+    $cases = $wpdb->get_results(
+        "SELECT c.*, cl.name as client_name, cl.phone as client_phone
+         FROM {$wpdb->prefix}munshi_cases c
+         JOIN {$wpdb->prefix}munshi_clients cl ON cl.id = c.client_id
+         ORDER BY c.next_hearing_date ASC, c.case_title ASC"
+    );
+    wp_send_json_success( $cases );
+}
+
+function munshi_save_case() {
+    munshi_verify_request();
+    global $wpdb;
+    $id   = intval( $_POST['id'] ?? 0 );
+    $data = [
+        'client_id'        => intval( $_POST['client_id'] ),
+        'case_title'       => sanitize_text_field( $_POST['case_title'] ),
+        'case_number'      => sanitize_text_field( $_POST['case_number'] ),
+        'case_type'        => sanitize_text_field( $_POST['case_type'] ),
+        'court_name'       => sanitize_text_field( $_POST['court_name'] ),
+        'judge_name'       => sanitize_text_field( $_POST['judge_name'] ?? '' ),
+        'opposite_party'   => sanitize_text_field( $_POST['opposite_party'] ),
+        'opposite_counsel' => sanitize_text_field( $_POST['opposite_counsel'] ?? '' ),
+        'fir_number'       => sanitize_text_field( $_POST['fir_number'] ?? '' ),
+        'police_station'   => sanitize_text_field( $_POST['police_station'] ?? '' ),
+        'description'      => sanitize_textarea_field( $_POST['description'] ?? '' ),
+        'internal_notes'   => sanitize_textarea_field( $_POST['internal_notes'] ?? '' ),
+        'status'           => sanitize_text_field( $_POST['status'] ?? 'ONGOING' ),
+        'priority'         => sanitize_text_field( $_POST['priority'] ?? 'MEDIUM' ),
+    ];
+
+    if ( ! empty($_POST['next_hearing_date']) ) {
+        $data['next_hearing_date'] = sanitize_text_field($_POST['next_hearing_date']);
+    }
+
+    if ( empty($data['client_id']) || empty($data['case_title']) || empty($data['case_number']) ) {
+        wp_send_json_error( 'Client, Case Title, and Case Number are required.' );
+    }
+
+    if ( $id ) {
+        $wpdb->update( "{$wpdb->prefix}munshi_cases", $data, [ 'id' => $id ] );
+    } else {
+        $wpdb->insert( "{$wpdb->prefix}munshi_cases", $data );
+        $id = $wpdb->insert_id;
+    }
+    wp_send_json_success( [ 'id' => $id, 'message' => 'Case saved successfully.' ] );
+}
+
+function munshi_delete_case() {
+    munshi_verify_request();
+    global $wpdb;
+    $id = intval( $_POST['id'] ?? 0 );
+    
+    $wpdb->delete( "{$wpdb->prefix}munshi_hearings",  [ 'case_id' => $id ] );
+    $wpdb->delete( "{$wpdb->prefix}munshi_tasks",     [ 'case_id' => $id ] );
+    $wpdb->delete( "{$wpdb->prefix}munshi_cases",     [ 'id' => $id ] );
+    wp_send_json_success( 'Case deleted.' );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 4. HEARINGS (COURT DIARY) SECTION
+// ═══════════════════════════════════════════════════════════════════════════════
+add_action( 'wp_ajax_munshi_get_hearings',   'munshi_get_hearings' );
+add_action( 'wp_ajax_munshi_save_hearing',   'munshi_save_hearing' );
+add_action( 'wp_ajax_munshi_delete_hearing', 'munshi_delete_hearing' );
+
+function munshi_get_hearings() {
+    munshi_verify_request();
+    global $wpdb;
+    $case_id = intval( $_POST['case_id'] ?? 0 );
+    $where = $case_id ? $wpdb->prepare( 'WHERE h.case_id = %d', $case_id ) : '';
+    
+    $hearings = $wpdb->get_results(
+        "SELECT h.*, c.case_title, c.case_number, cl.name as client_name, cl.phone as client_phone
+         FROM {$wpdb->prefix}munshi_hearings h
+         JOIN {$wpdb->prefix}munshi_cases c ON c.id = h.case_id
+         JOIN {$wpdb->prefix}munshi_clients cl ON cl.id = c.client_id
+         $where 
+         ORDER BY h.hearing_date DESC, h.hearing_time DESC"
+    );
+    wp_send_json_success( $hearings );
+}
+
+function munshi_save_hearing() {
+    munshi_verify_request();
+    global $wpdb;
+    $id   = intval( $_POST['id'] ?? 0 );
+    $data = [
+        'case_id'           => intval( $_POST['case_id'] ),
+        'hearing_date'      => sanitize_text_field( $_POST['hearing_date'] ),
+        'hearing_time'      => sanitize_text_field( $_POST['hearing_time'] ?? '' ),
+        'court_name'        => sanitize_text_field( $_POST['court_name'] ),
+        'purpose'           => sanitize_text_field( $_POST['purpose'] ),
+        'status'            => sanitize_text_field( $_POST['status'] ?? 'SCHEDULED' ),
+        'remarks'           => sanitize_textarea_field( $_POST['remarks'] ?? '' ),
+        'next_hearing_date' => sanitize_text_field( $_POST['next_hearing_date'] ?? '' ) ?: null,
+        'order_summary'     => sanitize_textarea_field( $_POST['order_summary'] ?? '' ),
+    ];
+
+    if ( empty($data['case_id']) || empty($data['hearing_date']) || empty($data['court_name']) ) {
+        wp_send_json_error( 'Case, Hearing Date, and Court Name are required.' );
+    }
+
+    if ( $id ) {
+        $wpdb->update( "{$wpdb->prefix}munshi_hearings", $data, [ 'id' => $id ] );
+    } else {
+        $wpdb->insert( "{$wpdb->prefix}munshi_hearings", $data );
+        $id = $wpdb->insert_id;
+    }
+
+    // Sync Case next hearing date
+    $next_date = $data['next_hearing_date'] ? $data['next_hearing_date'] . ' 00:00:00' : null;
+    $wpdb->update( "{$wpdb->prefix}munshi_cases", [ 'next_hearing_date' => $next_date ], [ 'id' => $data['case_id'] ] );
+
+    wp_send_json_success( [ 'id' => $id, 'message' => 'Hearing saved.' ] );
+}
+
+function munshi_delete_hearing() {
+    munshi_verify_request();
+    global $wpdb;
+    $id = intval( $_POST['id'] ?? 0 );
+    $wpdb->delete( "{$wpdb->prefix}munshi_hearings", [ 'id' => $id ] );
+    wp_send_json_success( 'Hearing deleted.' );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 5. BILLING & INVOICES
+// ═══════════════════════════════════════════════════════════════════════════════
 add_action( 'wp_ajax_munshi_get_invoices',      'munshi_get_invoices' );
 add_action( 'wp_ajax_munshi_generate_invoice',  'munshi_generate_invoice' );
 add_action( 'wp_ajax_munshi_delete_invoice',    'munshi_delete_invoice' );
@@ -245,13 +268,11 @@ function munshi_get_invoices() {
     munshi_verify_request();
     global $wpdb;
     $invoices = $wpdb->get_results(
-        "SELECT i.*, t.full_name, t.phone, u.unit_number, p.name as property_name
+        "SELECT i.*, cl.name as client_name, cl.phone as client_phone, c.case_title, c.case_number
          FROM {$wpdb->prefix}munshi_invoices i
-         JOIN {$wpdb->prefix}munshi_tenants t ON t.id = i.tenant_id
-         JOIN {$wpdb->prefix}munshi_units u ON u.id = t.unit_id
-         JOIN {$wpdb->prefix}munshi_properties p ON p.id = u.property_id
-         ORDER BY i.created_at DESC
-         LIMIT 300"
+         JOIN {$wpdb->prefix}munshi_clients cl ON cl.id = i.client_id
+         LEFT JOIN {$wpdb->prefix}munshi_cases c ON c.id = i.case_id
+         ORDER BY i.created_at DESC"
     );
     wp_send_json_success( $invoices );
 }
@@ -260,77 +281,38 @@ function munshi_generate_invoice() {
     munshi_verify_request();
     global $wpdb;
 
-    $tenant_id  = intval( $_POST['tenant_id'] );
-    $month      = sanitize_text_field( $_POST['billing_month'] ); // YYYY-MM
-    $elec_units = floatval( $_POST['electricity_units'] ?? 0 );
-    $elec_rate  = floatval( $_POST['electricity_rate'] ?? 25 );
-    $other      = floatval( $_POST['other_charges'] ?? 0 );
-    $other_desc = sanitize_text_field( $_POST['other_desc'] ?? '' );
+    $client_id = intval( $_POST['tenant_id'] ); // mapped parameter name for JS compatibility
+    $case_id   = intval( $_POST['case_id'] ?? 0 );
+    $amount    = floatval( $_POST['amount'] ?? 0 );
+    $discount  = floatval( $_POST['discount'] ?? 0 );
+    $due_date  = sanitize_text_field( $_POST['due_date'] ?? date('Y-m-d', strtotime('+7 days')) );
 
-    // Check if invoice already exists for this tenant/month
-    $existing = $wpdb->get_var( $wpdb->prepare(
-        "SELECT id FROM {$wpdb->prefix}munshi_invoices WHERE tenant_id = %d AND billing_month = %s",
-        $tenant_id, $month
-    ));
-    if ( $existing ) wp_send_json_error( 'Invoice already exists for this month.' );
+    if ( ! $client_id || $amount <= 0 ) {
+        wp_send_json_error( 'Valid Client and Amount are required.' );
+    }
 
-    // Get tenant + unit data
-    $data = $wpdb->get_row( $wpdb->prepare(
-        "SELECT t.*, u.rent_amount, u.maintenance_fee, u.water_charges
-         FROM {$wpdb->prefix}munshi_tenants t
-         JOIN {$wpdb->prefix}munshi_units u ON u.id = t.unit_id
-         WHERE t.id = %d", $tenant_id
-    ));
-    if ( ! $data ) wp_send_json_error( 'Tenant not found.' );
-
-    // Calculate arrears from previous unpaid/partial invoices
-    $arrears = (float) $wpdb->get_var( $wpdb->prepare(
-        "SELECT COALESCE(SUM(balance),0) FROM {$wpdb->prefix}munshi_invoices
-         WHERE tenant_id = %d AND status IN ('Unpaid','Partial')", $tenant_id
-    ));
-
-    $elec_amount = $elec_units * $elec_rate;
-    $total = $data->rent_amount + $elec_amount + $data->water_charges + $data->maintenance_fee + $other + $arrears;
-
-    // Generate unique invoice number
+    $total = max(0, $amount - $discount);
     $inv_number = 'INV-' . strtoupper( substr( md5( uniqid() ), 0, 8 ) );
-    $due_date   = date( 'Y-m-d', strtotime( $month . '-01 +10 days' ) );
 
     $wpdb->insert( "{$wpdb->prefix}munshi_invoices", [
-        'tenant_id'          => $tenant_id,
-        'invoice_number'     => $inv_number,
-        'billing_month'      => $month,
-        'due_date'           => $due_date,
-        'rent_amount'        => $data->rent_amount,
-        'electricity_units'  => $elec_units,
-        'electricity_rate'   => $elec_rate,
-        'electricity_amount' => $elec_amount,
-        'water_charges'      => $data->water_charges,
-        'maintenance_fee'    => $data->maintenance_fee,
-        'other_charges'      => $other,
-        'other_desc'         => $other_desc,
-        'arrears'            => $arrears,
-        'total_amount'       => $total,
-        'paid_amount'        => 0,
-        'balance'            => $total,
-        'status'             => 'Unpaid',
+        'client_id'      => $client_id,
+        'case_id'        => $case_id ?: null,
+        'invoice_number' => $inv_number,
+        'amount'         => $amount,
+        'discount'       => $discount,
+        'total_amount'   => $total,
+        'paid_amount'    => 0,
+        'balance'        => $total,
+        'status'         => 'Unpaid',
+        'due_date'       => $due_date,
     ]);
 
     $invoice_id = $wpdb->insert_id;
-
-    // Auto-send WhatsApp reminder
-    if ( get_option( 'munshi_auto_wa_reminder', 0 ) ) {
-        do_action( 'munshi_send_whatsapp', $data->whatsapp ?: $data->phone,
-            "Invoice #{$inv_number} generated for {$month}. Amount: PKR " . number_format( $total, 0 ) . ". Due: {$due_date}.",
-            'invoice'
-        );
-    }
-
     wp_send_json_success( [
-        'invoice_id'    => $invoice_id,
-        'invoice_number'=> $inv_number,
-        'total'         => $total,
-        'message'       => 'Invoice generated successfully.',
+        'invoice_id'     => $invoice_id,
+        'invoice_number' => $inv_number,
+        'total'          => $total,
+        'message'        => 'Invoice generated successfully.',
     ]);
 }
 
@@ -344,11 +326,26 @@ function munshi_delete_invoice() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PAYMENTS
+// 6. PAYMENTS RECORDING
 // ═══════════════════════════════════════════════════════════════════════════════
-
-add_action( 'wp_ajax_munshi_record_payment',  'munshi_record_payment' );
 add_action( 'wp_ajax_munshi_get_payments',    'munshi_get_payments' );
+add_action( 'wp_ajax_munshi_record_payment',  'munshi_record_payment' );
+
+function munshi_get_payments() {
+    munshi_verify_request();
+    global $wpdb;
+    $invoice_id = intval( $_POST['invoice_id'] ?? 0 );
+    $where = $invoice_id ? $wpdb->prepare( 'WHERE p.invoice_id = %d', $invoice_id ) : '';
+    
+    $payments = $wpdb->get_results(
+        "SELECT p.*, i.invoice_number, cl.name as client_name
+         FROM {$wpdb->prefix}munshi_payments p
+         JOIN {$wpdb->prefix}munshi_invoices i ON i.id = p.invoice_id
+         JOIN {$wpdb->prefix}munshi_clients cl ON cl.id = i.client_id
+         $where ORDER BY p.paid_date DESC LIMIT 200"
+    );
+    wp_send_json_success( $payments );
+}
 
 function munshi_record_payment() {
     munshi_verify_request();
@@ -356,12 +353,16 @@ function munshi_record_payment() {
 
     $invoice_id = intval( $_POST['invoice_id'] ?? 0 );
     $amount     = floatval( $_POST['amount'] ?? 0 );
-    if ( ! $invoice_id || $amount <= 0 ) wp_send_json_error( 'Invalid payment data.' );
+    if ( ! $invoice_id || $amount <= 0 ) {
+        wp_send_json_error( 'Invalid payment amount or invoice.' );
+    }
 
     $invoice = $wpdb->get_row( $wpdb->prepare(
         "SELECT * FROM {$wpdb->prefix}munshi_invoices WHERE id = %d", $invoice_id
     ));
-    if ( ! $invoice ) wp_send_json_error( 'Invoice not found.' );
+    if ( ! $invoice ) {
+        wp_send_json_error( 'Invoice not found.' );
+    }
 
     $receipt = 'REC-' . strtoupper( substr( md5( uniqid() ), 0, 6 ) );
     $wpdb->insert( "{$wpdb->prefix}munshi_payments", [
@@ -375,44 +376,28 @@ function munshi_record_payment() {
         'notes'          => sanitize_textarea_field( $_POST['notes'] ?? '' ),
     ]);
 
-    // Update invoice balance
+    // Update invoice ledger
     $new_paid   = $invoice->paid_amount + $amount;
-    $new_balance= $invoice->total_amount - $new_paid;
+    $new_balance= max(0, $invoice->total_amount - $new_paid);
     $new_status = $new_balance <= 0 ? 'Paid' : ( $new_paid > 0 ? 'Partial' : 'Unpaid' );
 
     $wpdb->update( "{$wpdb->prefix}munshi_invoices", [
         'paid_amount' => $new_paid,
-        'balance'     => max( 0, $new_balance ),
+        'balance'     => $new_balance,
         'status'      => $new_status,
     ], [ 'id' => $invoice_id ]);
 
     wp_send_json_success([
         'receipt_number' => $receipt,
-        'new_balance'    => max( 0, $new_balance ),
+        'new_balance'    => $new_balance,
         'status'         => $new_status,
         'message'        => 'Payment recorded. Receipt: ' . $receipt,
     ]);
 }
 
-function munshi_get_payments() {
-    munshi_verify_request();
-    global $wpdb;
-    $invoice_id = intval( $_POST['invoice_id'] ?? 0 );
-    $where = $invoice_id ? $wpdb->prepare( 'WHERE p.invoice_id = %d', $invoice_id ) : '';
-    $payments = $wpdb->get_results(
-        "SELECT p.*, i.invoice_number, i.billing_month, t.full_name
-         FROM {$wpdb->prefix}munshi_payments p
-         JOIN {$wpdb->prefix}munshi_invoices i ON i.id = p.invoice_id
-         JOIN {$wpdb->prefix}munshi_tenants t ON t.id = i.tenant_id
-         $where ORDER BY p.paid_date DESC LIMIT 200"
-    );
-    wp_send_json_success( $payments );
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
-// ANALYTICS / REPORTS
+// 7. ANALYTICS & REPORTS
 // ═══════════════════════════════════════════════════════════════════════════════
-
 add_action( 'wp_ajax_munshi_get_analytics', 'munshi_get_analytics' );
 function munshi_get_analytics() {
     munshi_verify_request();
@@ -420,7 +405,7 @@ function munshi_get_analytics() {
 
     $year = intval( $_POST['year'] ?? date('Y') );
 
-    // Monthly revenue collected (last 12 months)
+    // Monthly revenue collected
     $revenue = $wpdb->get_results( $wpdb->prepare(
         "SELECT DATE_FORMAT(paid_date,'%%Y-%%m') as month, SUM(amount) as collected
          FROM {$wpdb->prefix}munshi_payments
@@ -428,90 +413,69 @@ function munshi_get_analytics() {
          GROUP BY month ORDER BY month", $year
     ));
 
-    // Monthly invoiced (billed)
+    // Monthly billed fees
     $billed = $wpdb->get_results( $wpdb->prepare(
-        "SELECT billing_month as month, SUM(total_amount) as billed, SUM(balance) as pending
+        "SELECT DATE_FORMAT(created_at,'%%Y-%%m') as month, SUM(total_amount) as billed
          FROM {$wpdb->prefix}munshi_invoices
-         WHERE YEAR(STR_TO_DATE(CONCAT(billing_month,'-01'), '%%Y-%%m-%%d')) = %d
-         GROUP BY billing_month ORDER BY billing_month", $year
+         WHERE YEAR(created_at) = %d
+         GROUP BY month ORDER BY month", $year
     ));
 
-    // KPI summary
+    // General KPI reports
     $kpi = $wpdb->get_row(
         "SELECT 
-            (SELECT COUNT(*) FROM {$wpdb->prefix}munshi_properties) as total_properties,
-            (SELECT COUNT(*) FROM {$wpdb->prefix}munshi_units) as total_units,
-            (SELECT COUNT(*) FROM {$wpdb->prefix}munshi_units WHERE status='Occupied') as occupied,
-            (SELECT COUNT(*) FROM {$wpdb->prefix}munshi_units WHERE status='Vacant') as vacant,
-            (SELECT COUNT(*) FROM {$wpdb->prefix}munshi_tenants WHERE status='Active') as active_tenants,
+            (SELECT COUNT(*) FROM {$wpdb->prefix}munshi_cases WHERE status != 'CLOSED') as active_cases,
+            (SELECT COUNT(*) FROM {$wpdb->prefix}munshi_cases WHERE status = 'CLOSED') as closed_cases,
+            (SELECT COUNT(*) FROM {$wpdb->prefix}munshi_clients) as clients,
             (SELECT COALESCE(SUM(balance),0) FROM {$wpdb->prefix}munshi_invoices WHERE status IN ('Unpaid','Partial')) as total_dues,
             (SELECT COALESCE(SUM(amount),0) FROM {$wpdb->prefix}munshi_payments WHERE YEAR(paid_date)=YEAR(NOW())) as yearly_revenue"
     );
 
-    // Expiring agreements (next 30 days)
+    // Upcoming critical hearings (next 30 days)
     $expiring = $wpdb->get_results(
-        "SELECT t.full_name, t.phone, t.agreement_end, u.unit_number, p.name as property_name
-         FROM {$wpdb->prefix}munshi_tenants t
-         JOIN {$wpdb->prefix}munshi_units u ON u.id = t.unit_id
-         JOIN {$wpdb->prefix}munshi_properties p ON p.id = u.property_id
-         WHERE t.agreement_end BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)
-         AND t.status = 'Active'
-         ORDER BY t.agreement_end ASC"
+        "SELECT h.*, c.case_title, c.case_number, cl.name as client_name
+         FROM {$wpdb->prefix}munshi_hearings h
+         JOIN {$wpdb->prefix}munshi_cases c ON c.id = h.case_id
+         JOIN {$wpdb->prefix}munshi_clients cl ON cl.id = c.client_id
+         WHERE h.hearing_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)
+         ORDER BY h.hearing_date ASC, h.hearing_time ASC"
     );
 
     wp_send_json_success([
         'revenue'   => $revenue,
         'billed'    => $billed,
         'kpi'       => $kpi,
-        'expiring'  => $expiring,
+        'expiring'  => $expiring, // Mapped for JS chart compatibility
         'year'      => $year,
     ]);
 }
 
-// ─── Dashboard Init Data ──────────────────────────────────────────────────────
-add_action( 'wp_ajax_munshi_dashboard_init', 'munshi_dashboard_init' );
-function munshi_dashboard_init() {
+// ═══════════════════════════════════════════════════════════════════════════════
+// 8. LEGAL EVIDENCE DOCUMENT UPLOAD
+// ═══════════════════════════════════════════════════════════════════════════════
+add_action( 'wp_ajax_munshi_upload_document', 'munshi_upload_document' );
+function munshi_upload_document() {
     munshi_verify_request();
-    global $wpdb;
-    $kpi = $wpdb->get_row(
-        "SELECT 
-            (SELECT COUNT(*) FROM {$wpdb->prefix}munshi_properties) as properties,
-            (SELECT COUNT(*) FROM {$wpdb->prefix}munshi_units WHERE status='Occupied') as occupied,
-            (SELECT COUNT(*) FROM {$wpdb->prefix}munshi_units WHERE status='Vacant') as vacant,
-            (SELECT COUNT(*) FROM {$wpdb->prefix}munshi_tenants WHERE status='Active') as tenants,
-            (SELECT COALESCE(SUM(balance),0) FROM {$wpdb->prefix}munshi_invoices WHERE status IN ('Unpaid','Partial')) as total_dues,
-            (SELECT COALESCE(SUM(amount),0) FROM {$wpdb->prefix}munshi_payments WHERE MONTH(paid_date)=MONTH(NOW()) AND YEAR(paid_date)=YEAR(NOW())) as this_month_revenue"
-    );
-    $recent_payments = $wpdb->get_results(
-        "SELECT p.*, i.invoice_number, t.full_name, t.phone
-         FROM {$wpdb->prefix}munshi_payments p
-         JOIN {$wpdb->prefix}munshi_invoices i ON i.id = p.invoice_id
-         JOIN {$wpdb->prefix}munshi_tenants t ON t.id = i.tenant_id
-         ORDER BY p.created_at DESC LIMIT 5"
-    );
-    $upcoming_dues = $wpdb->get_results(
-        "SELECT i.*, t.full_name, t.phone, u.unit_number, p.name as property_name
-         FROM {$wpdb->prefix}munshi_invoices i
-         JOIN {$wpdb->prefix}munshi_tenants t ON t.id = i.tenant_id
-         JOIN {$wpdb->prefix}munshi_units u ON u.id = t.unit_id
-         JOIN {$wpdb->prefix}munshi_properties p ON p.id = u.property_id
-         WHERE i.status IN ('Unpaid','Partial')
-         ORDER BY i.due_date ASC LIMIT 5"
-    );
-    wp_send_json_success([
-        'kpi'            => $kpi,
-        'recent_payments'=> $recent_payments,
-        'upcoming_dues'  => $upcoming_dues,
-        'site_name'      => get_bloginfo('name'),
-        'site_url'       => home_url(),
-    ]);
-}
+    if ( empty( $_FILES['file'] ) ) wp_send_json_error( 'No file uploaded.' );
 
-// ─── PDF Download ─────────────────────────────────────────────────────────────
-add_action( 'wp_ajax_munshi_download_invoice', 'munshi_download_invoice' );
-function munshi_download_invoice() {
-    munshi_verify_request();
-    $invoice_id = intval( $_POST['invoice_id'] ?? 0 );
-    munshi_generate_pdf_invoice( $invoice_id );
-    exit;
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+    require_once ABSPATH . 'wp-admin/includes/media.php';
+    require_once ABSPATH . 'wp-admin/includes/image.php';
+
+    $attachment_id = media_handle_upload( 'file', 0 );
+    if ( is_wp_error( $attachment_id ) ) wp_send_json_error( $attachment_id->get_error_message() );
+
+    global $wpdb;
+    $wpdb->insert( "{$wpdb->prefix}munshi_documents", [
+        'case_id'   => intval( $_POST['case_id'] ?? 0 ) ?: null,
+        'client_id' => intval( $_POST['tenant_id'] ?? 0 ) ?: null, // mapped param for compatibility
+        'doc_type'  => sanitize_text_field( $_POST['doc_type'] ?? 'Evidence' ),
+        'file_name' => basename( get_attached_file( $attachment_id ) ),
+        'file_url'  => wp_get_attachment_url( $attachment_id ),
+    ]);
+
+    wp_send_json_success( [
+        'doc_id'   => $wpdb->insert_id,
+        'file_url' => wp_get_attachment_url( $attachment_id ),
+    ]);
 }

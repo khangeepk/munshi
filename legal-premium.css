@@ -1,0 +1,484 @@
+/*
+ * Theme Name: PakMunshi Astra Child - Legal Pro
+ * Theme URI: https://pakmunshi.com
+ * Description: Premium Legal Website Child Theme for PakMunshi - Designed by Sami Khan SQ Tech
+ * Author: Sami Khan - SQ Tech
+ * Author URI: https://pakmunshi.com
+ * Template: astra
+ * Version: 2.0.0
+ * Text Domain: pakmunshi-astra-child
+ */
+
+/* ============================================
+   GOOGLE FONTS IMPORT
+   ============================================ */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* ============================================
+   CSS CUSTOM PROPERTIES (Design Tokens)
+   ============================================ */
+:root {
+    --pm-navy:       #0a1628;
+    --pm-navy-mid:   #112240;
+    --pm-navy-light: #1a3358;
+    --pm-gold:       #c9a84c;
+    --pm-gold-light: #e2c068;
+    --pm-gold-dark:  #a8893a;
+    --pm-white:      #ffffff;
+    --pm-off-white:  #f8f6f0;
+    --pm-gray:       #8892a4;
+    --pm-gray-light: #e8edf5;
+    --pm-text:       #1e2d45;
+    --pm-shadow:     0 8px 32px rgba(10, 22, 40, 0.18);
+    --pm-shadow-lg:  0 20px 60px rgba(10, 22, 40, 0.25);
+    --pm-radius:     4px;
+    --pm-radius-lg:  12px;
+    --pm-transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    --pm-font-serif: 'Playfair Display', Georgia, serif;
+    --pm-font-sans:  'Inter', system-ui, sans-serif;
+}
+
+/* ============================================
+   GLOBAL RESET & BASE
+   ============================================ */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+    font-family: var(--pm-font-sans) !important;
+    color: var(--pm-text) !important;
+    background-color: var(--pm-white) !important;
+    -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--pm-font-serif) !important;
+    color: var(--pm-navy) !important;
+    line-height: 1.2 !important;
+}
+
+a { transition: var(--pm-transition); }
+img { max-width: 100%; height: auto; }
+
+/* ============================================
+   HEADER / NAVIGATION
+   ============================================ */
+.site-header,
+#masthead,
+.ast-primary-header-bar {
+    background: var(--pm-navy) !important;
+    border-bottom: 2px solid var(--pm-gold) !important;
+    box-shadow: 0 2px 20px rgba(10,22,40,0.4) !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 999 !important;
+}
+
+/* Logo */
+.site-title a,
+.ast-site-identity .site-title a {
+    font-family: var(--pm-font-serif) !important;
+    color: var(--pm-white) !important;
+    font-size: 26px !important;
+    font-weight: 700 !important;
+    text-decoration: none !important;
+    letter-spacing: 0.5px !important;
+}
+
+.site-title a span,
+.ast-site-identity .site-title a span {
+    color: var(--pm-gold) !important;
+}
+
+/* Navigation Links */
+.main-navigation a,
+.ast-main-header-bar-alignment a,
+#site-navigation a,
+.main-header-menu .menu-item a {
+    font-family: var(--pm-font-sans) !important;
+    color: rgba(255,255,255,0.85) !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1.2px !important;
+    padding: 8px 18px !important;
+    border-radius: var(--pm-radius) !important;
+    transition: var(--pm-transition) !important;
+}
+
+.main-navigation a:hover,
+.ast-main-header-bar-alignment a:hover,
+#site-navigation a:hover,
+.main-header-menu .menu-item a:hover,
+.main-header-menu .menu-item.current-menu-item > a {
+    color: var(--pm-gold) !important;
+    background: rgba(201, 168, 76, 0.1) !important;
+}
+
+/* CTA Button in Nav */
+.main-header-menu .menu-item.menu-cta > a,
+.ast-header-custom-widget .ast-custom-widget-btn a {
+    background: var(--pm-gold) !important;
+    color: var(--pm-navy) !important;
+    font-weight: 700 !important;
+    padding: 10px 24px !important;
+    border-radius: 2px !important;
+}
+
+/* ============================================
+   HERO / BANNER SECTION
+   ============================================ */
+.ast-hero-container,
+.elementor-section.hero-section,
+.wp-block-cover,
+.page-id-home .entry-content > :first-child,
+.home .ast-container > .ast-row > :first-child {
+    background: linear-gradient(135deg, var(--pm-navy) 0%, var(--pm-navy-mid) 60%, var(--pm-navy-light) 100%) !important;
+}
+
+/* Hero text overrides */
+.hero-title, .ast-hero-container h1 {
+    font-family: var(--pm-font-serif) !important;
+    font-size: clamp(36px, 5vw, 64px) !important;
+    color: var(--pm-white) !important;
+    line-height: 1.1 !important;
+    font-weight: 700 !important;
+}
+
+/* ============================================
+   BUTTONS — PREMIUM GOLD STYLE
+   ============================================ */
+.ast-btn,
+.button,
+.wp-block-button__link,
+a.button,
+input[type="submit"],
+button[type="submit"],
+.elementor-button,
+.wpcf7-submit {
+    font-family: var(--pm-font-sans) !important;
+    background: var(--pm-gold) !important;
+    color: var(--pm-navy) !important;
+    border: 2px solid var(--pm-gold) !important;
+    font-weight: 700 !important;
+    font-size: 13px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1.5px !important;
+    padding: 14px 36px !important;
+    border-radius: 2px !important;
+    cursor: pointer !important;
+    transition: var(--pm-transition) !important;
+    text-decoration: none !important;
+    display: inline-block !important;
+}
+
+.ast-btn:hover,
+.button:hover,
+.wp-block-button__link:hover,
+.elementor-button:hover,
+input[type="submit"]:hover,
+button[type="submit"]:hover {
+    background: transparent !important;
+    color: var(--pm-gold) !important;
+    border-color: var(--pm-gold) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(201, 168, 76, 0.3) !important;
+}
+
+/* Outline button variant */
+.button.outline,
+.ast-btn.outline {
+    background: transparent !important;
+    color: var(--pm-white) !important;
+    border: 2px solid rgba(255,255,255,0.6) !important;
+}
+
+/* ============================================
+   CARDS & SECTIONS
+   ============================================ */
+
+/* Feature / Service Cards */
+.ast-icon-list,
+.wp-block-column,
+.elementor-widget-container .elementor-icon-box-wrapper,
+.ast-team-member-wrapper {
+    background: var(--pm-white) !important;
+    border: 1px solid var(--pm-gray-light) !important;
+    border-top: 3px solid var(--pm-gold) !important;
+    border-radius: var(--pm-radius-lg) !important;
+    padding: 36px !important;
+    transition: var(--pm-transition) !important;
+    box-shadow: 0 4px 16px rgba(10,22,40,0.06) !important;
+}
+
+.ast-icon-list:hover,
+.wp-block-column:hover,
+.elementor-widget-container:hover {
+    transform: translateY(-6px) !important;
+    box-shadow: var(--pm-shadow-lg) !important;
+    border-top-color: var(--pm-gold) !important;
+}
+
+/* Section Headings */
+.entry-content h2,
+.wp-block-heading,
+.elementor-heading-title {
+    font-family: var(--pm-font-serif) !important;
+    color: var(--pm-navy) !important;
+    position: relative !important;
+    padding-bottom: 16px !important;
+    margin-bottom: 24px !important;
+}
+
+.entry-content h2::after,
+.section-heading::after {
+    content: '' !important;
+    position: absolute !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 60px !important;
+    height: 3px !important;
+    background: var(--pm-gold) !important;
+    border-radius: 2px !important;
+}
+
+/* ============================================
+   DARK / NAVY SECTIONS
+   ============================================ */
+.has-navy-background-color,
+.wp-block-cover.is-dark,
+.dark-section,
+.elementor-section.dark-bg {
+    background: var(--pm-navy) !important;
+    color: var(--pm-white) !important;
+}
+
+.has-navy-background-color h1,
+.has-navy-background-color h2,
+.has-navy-background-color h3,
+.dark-section h1,
+.dark-section h2,
+.dark-section h3 {
+    color: var(--pm-white) !important;
+}
+
+/* ============================================
+   FOOTER
+   ============================================ */
+.site-footer,
+#colophon,
+.ast-footer-area {
+    background: var(--pm-navy) !important;
+    border-top: 2px solid var(--pm-gold) !important;
+    color: rgba(255,255,255,0.7) !important;
+}
+
+.site-footer a,
+#colophon a,
+.ast-footer-area a {
+    color: var(--pm-gold-light) !important;
+    text-decoration: none !important;
+    transition: var(--pm-transition) !important;
+}
+
+.site-footer a:hover,
+#colophon a:hover {
+    color: var(--pm-white) !important;
+}
+
+.site-footer h3,
+.site-footer h4,
+.ast-footer-area h3,
+.ast-footer-area h4 {
+    color: var(--pm-white) !important;
+    font-family: var(--pm-font-serif) !important;
+    border-bottom: 1px solid rgba(201,168,76,0.3) !important;
+    padding-bottom: 12px !important;
+    margin-bottom: 20px !important;
+}
+
+.ast-footer-copyright {
+    background: rgba(0,0,0,0.3) !important;
+    color: rgba(255,255,255,0.5) !important;
+    border-top: 1px solid rgba(255,255,255,0.08) !important;
+    font-size: 13px !important;
+    padding: 16px !important;
+}
+
+/* ============================================
+   SIDEBAR
+   ============================================ */
+.widget-title,
+.widgettitle {
+    font-family: var(--pm-font-serif) !important;
+    color: var(--pm-navy) !important;
+    font-size: 18px !important;
+    border-left: 4px solid var(--pm-gold) !important;
+    padding-left: 14px !important;
+    margin-bottom: 20px !important;
+}
+
+/* ============================================
+   FORMS
+   ============================================ */
+input[type="text"],
+input[type="email"],
+input[type="tel"],
+input[type="url"],
+input[type="password"],
+textarea,
+select {
+    border: 1px solid var(--pm-gray-light) !important;
+    border-radius: var(--pm-radius) !important;
+    padding: 14px 18px !important;
+    font-family: var(--pm-font-sans) !important;
+    font-size: 15px !important;
+    color: var(--pm-text) !important;
+    background: var(--pm-white) !important;
+    transition: var(--pm-transition) !important;
+    width: 100% !important;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+textarea:focus {
+    border-color: var(--pm-gold) !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.15) !important;
+}
+
+/* ============================================
+   BREADCRUMBS
+   ============================================ */
+.ast-breadcrumbs-wrapper,
+.breadcrumb {
+    background: var(--pm-off-white) !important;
+    padding: 12px 0 !important;
+    font-size: 13px !important;
+    color: var(--pm-gray) !important;
+    border-bottom: 1px solid var(--pm-gray-light) !important;
+}
+
+.ast-breadcrumbs-wrapper a {
+    color: var(--pm-gold-dark) !important;
+}
+
+/* ============================================
+   PAGE TITLE / HERO BANNER
+   ============================================ */
+.ast-page-title-bar,
+.entry-header,
+.page-hero {
+    background: linear-gradient(135deg, var(--pm-navy) 0%, var(--pm-navy-mid) 100%) !important;
+    color: var(--pm-white) !important;
+    padding: 80px 0 !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.ast-page-title-bar::before {
+    content: '' !important;
+    position: absolute !important;
+    top: 0; right: 0; bottom: 0; left: 0 !important;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c9a84c' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") !important;
+    opacity: 0.5 !important;
+    pointer-events: none !important;
+}
+
+.ast-page-title-bar h1,
+.entry-header h1,
+.page-title {
+    color: var(--pm-white) !important;
+    font-size: clamp(28px, 4vw, 48px) !important;
+}
+
+/* Decorative gold line under page title */
+.ast-page-title-bar h1::after {
+    content: '' !important;
+    display: block !important;
+    width: 80px !important;
+    height: 3px !important;
+    background: var(--pm-gold) !important;
+    margin: 16px auto 0 !important;
+    border-radius: 2px !important;
+}
+
+/* ============================================
+   TESTIMONIALS / QUOTES
+   ============================================ */
+blockquote,
+.wp-block-quote {
+    border-left: 4px solid var(--pm-gold) !important;
+    background: var(--pm-off-white) !important;
+    padding: 24px 32px !important;
+    margin: 32px 0 !important;
+    border-radius: 0 var(--pm-radius-lg) var(--pm-radius-lg) 0 !important;
+    font-family: var(--pm-font-serif) !important;
+    font-style: italic !important;
+    font-size: 18px !important;
+    color: var(--pm-navy) !important;
+}
+
+/* ============================================
+   GOLD ACCENT UTILITY CLASSES
+   ============================================ */
+.text-gold    { color: var(--pm-gold) !important; }
+.text-navy    { color: var(--pm-navy) !important; }
+.text-white   { color: var(--pm-white) !important; }
+.bg-navy      { background-color: var(--pm-navy) !important; }
+.bg-gold      { background-color: var(--pm-gold) !important; }
+.bg-off-white { background-color: var(--pm-off-white) !important; }
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes goldShimmer {
+    0%   { background-position: -200% center; }
+    100% { background-position: 200% center; }
+}
+
+.animate-fade-in {
+    animation: fadeInUp 0.7s ease forwards !important;
+}
+
+/* Gold shimmer on headings */
+.entry-title,
+.page-title,
+.ast-page-title-bar h1 {
+    background: linear-gradient(90deg, var(--pm-white) 40%, var(--pm-gold-light) 50%, var(--pm-white) 60%) !important;
+    background-size: 200% auto !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+    animation: goldShimmer 4s linear infinite !important;
+}
+
+/* ============================================
+   RESPONSIVE — MOBILE
+   ============================================ */
+@media (max-width: 768px) {
+    .ast-page-title-bar { padding: 48px 0 !important; }
+    h1 { font-size: 28px !important; }
+    h2 { font-size: 22px !important; }
+
+    .main-navigation a,
+    .ast-main-header-bar-alignment a {
+        padding: 12px 16px !important;
+    }
+
+    .ast-icon-list,
+    .wp-block-column {
+        margin-bottom: 24px !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .ast-btn, .button, .wp-block-button__link {
+        padding: 12px 24px !important;
+        font-size: 12px !important;
+    }
+}

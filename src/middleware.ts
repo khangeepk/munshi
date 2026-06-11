@@ -3,7 +3,7 @@
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { SESSION_COOKIE } from '@/lib/session-token';
+const SESSION_COOKIE = 'ls_session';
 
 const SETUP_PATH = '/setup';
 const LOGIN_PATH = '/login';

@@ -185,7 +185,7 @@ function OverviewTab({ c }: { c: CaseDetail }) {
         >
           <div
             className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 font-extrabold text-white text-base"
-            style={{ background: 'linear-gradient(135deg,#2563EB,#7C3AED)' }}
+            style={{ background: 'linear-gradient(135deg,var(--primary),#7C3AED)' }}
           >
             {c.lawyer.name.charAt(0).toUpperCase()}
           </div>
@@ -290,7 +290,7 @@ function TimelineTab({ events }: { events: TLEvent[] }) {
   const dotStyle = (e: TLEvent) => {
     if (e.kind === 'filed')   return { bg: '#10B981', border: '#10B981' };
     if (!e.isPast)            return { bg: 'var(--card)', border: '#3B82F6' };
-    return                           { bg: '#2563EB',    border: '#2563EB' };
+    return                           { bg: 'var(--primary)',    border: 'var(--primary)' };
   };
 
   return (
@@ -380,7 +380,7 @@ function DocumentsTab({ documents }: { documents: CaseDocument[] }) {
         </div>
         <button
           className="inline-flex items-center gap-2 text-sm font-bold text-white px-5 py-2.5 rounded-xl shadow-md hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all"
-          style={{ background: '#2563EB' }}
+          style={{ background: 'var(--primary)' }}
           onClick={() => alert('Document upload coming soon!')}
         >
           <Upload className="w-4 h-4" />
@@ -396,7 +396,7 @@ function DocumentsTab({ documents }: { documents: CaseDocument[] }) {
         <p className="text-sm text-muted-foreground">{documents.length} file{documents.length !== 1 ? 's' : ''} attached</p>
         <button
           className="inline-flex items-center gap-2 text-xs font-bold text-white px-4 py-2 rounded-lg shadow hover:opacity-90 transition-all"
-          style={{ background: '#2563EB' }}
+          style={{ background: 'var(--primary)' }}
           onClick={() => alert('Document upload coming soon!')}
         >
           <Upload className="w-3.5 h-3.5" />
@@ -707,7 +707,7 @@ export default function CaseDetailPage() {
           >
             <div className="flex items-center gap-2 text-sm">
               <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-extrabold shrink-0"
-                style={{ background: 'linear-gradient(135deg,#2563EB,#7C3AED)' }}>
+                style={{ background: 'linear-gradient(135deg,var(--primary),#7C3AED)' }}>
                 {data.lawyer.name.charAt(0)}
               </div>
               <span className="font-semibold text-foreground">{data.lawyer.name}</span>
@@ -751,7 +751,7 @@ export default function CaseDetailPage() {
                 <span
                   className="text-[10px] font-extrabold w-5 h-5 flex items-center justify-center rounded-full"
                   style={{
-                    background: activeTab === key ? '#2563EB' : 'var(--muted)',
+                    background: activeTab === key ? 'var(--primary)' : 'var(--muted)',
                     color:      activeTab === key ? '#fff'     : 'var(--muted-foreground)',
                   }}
                 >

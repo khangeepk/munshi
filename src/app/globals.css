@@ -128,71 +128,71 @@
 }
 
 :root {
-  /* ── Light Mode: crisp, minimal, professional ── */
-  --background:    #F4F5F7;
-  --foreground:    #0D0D0D;
+  /* ── Light Mode: crisp, minimal, professional (Astra Style) ── */
+  --background:    #F8FAFC;      /* Clean, soft Astra grey-white background */
+  --foreground:    #1F2937;      /* High contrast slate/dark gray for headings & text */
 
   --card:          #FFFFFF;
-  --card-foreground: #0D0D0D;
+  --card-foreground: #1F2937;
 
   --popover:       #FFFFFF;
-  --popover-foreground: #0D0D0D;
+  --popover-foreground: #1F2937;
 
-  --primary:       #2563EB;      /* Electric Blue */
+  --primary:       #0274BE;      /* Signature Astra Blue */
   --primary-foreground: #FFFFFF;
 
-  --secondary:     #F1F3F5;
-  --secondary-foreground: #1A1A2E;
+  --secondary:     #F1F5F9;
+  --secondary-foreground: #0F172A;
 
-  --muted:         #EAEDF0;
+  --muted:         #F3F4F6;
   --muted-foreground: #6B7280;
 
   --accent:        #EFF6FF;
-  --accent-foreground: #1D4ED8;
+  --accent-foreground: #0274BE;
 
   --destructive:   #EF4444;
 
-  --border:        #E2E5EA;
-  --input:         #E9ECF0;
-  --ring:          #3B82F6;
+  --border:        #E5E7EB;      /* Clean thin lines */
+  --input:         #F3F4F6;
+  --ring:          #0274BE;
 
-  --radius: 0.75rem;
+  --radius: 0.5rem;             /* Classic Astra rounded buttons and cards */
 
-  /* Sidebar — deep charcoal even in light mode */
-  --sidebar:                  #1A1A2E;
-  --sidebar-foreground:       #A0AEC0;
-  --sidebar-primary:          #2563EB;
+  /* Sidebar — Clean light sidebar in Light Mode */
+  --sidebar:                  #FFFFFF;
+  --sidebar-foreground:       #4B5563;
+  --sidebar-primary:          #0274BE;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent:           #252540;
-  --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border:           rgba(255,255,255,0.06);
-  --sidebar-ring:             #3B82F6;
+  --sidebar-accent:           #F0F7FF;      /* Very soft blue tint */
+  --sidebar-accent-foreground: #0274BE;
+  --sidebar-border:           #E5E7EB;
+  --sidebar-ring:             #0274BE;
 
   /* Glow tokens */
-  --glow-blue:  0 0 0 1px rgba(59,130,246,0.35), 0 0 20px rgba(59,130,246,0.12);
+  --glow-blue:  0 0 0 1px rgba(2,116,190,0.35), 0 0 20px rgba(2,116,190,0.12);
 }
 
 .dark {
   /* ── Dark Mode: Deep Charcoal, #121212 base ── */
-  --background:    #0E0E0E;
-  --foreground:    #F0F0F0;
+  --background:    #0B0F19;      /* Softer deep dark slate */
+  --foreground:    #F3F4F6;
 
-  --card:          #1A1A1A;
-  --card-foreground: #F0F0F0;
+  --card:          #111827;      /* Clean dark card */
+  --card-foreground: #F3F4F6;
 
-  --popover:       #1F1F1F;
-  --popover-foreground: #F0F0F0;
+  --popover:       #1F2937;
+  --popover-foreground: #F3F4F6;
 
-  --primary:       #3B82F6;      /* Electric Blue accent */
+  --primary:       #3B82F6;      /* Electric Blue accent for dark mode */
   --primary-foreground: #FFFFFF;
 
-  --secondary:     #1F1F1F;
+  --secondary:     #1F2937;
   --secondary-foreground: #E5E7EB;
 
-  --muted:         #1F1F1F;
-  --muted-foreground: #6B7280;
+  --muted:         #1F2937;
+  --muted-foreground: #9CA3AF;
 
-  --accent:        #1E3A5F;
+  --accent:        #1E3A8A;
   --accent-foreground: #93C5FD;
 
   --destructive:   #F87171;
@@ -201,14 +201,14 @@
   --input:         rgba(255,255,255,0.10);
   --ring:          #3B82F6;
 
-  /* Sidebar — same deep charcoal in dark mode */
-  --sidebar:                  #111111;
-  --sidebar-foreground:       #8892A4;
+  /* Sidebar — Sleek dark charcoal in dark mode */
+  --sidebar:                  #0F172A;
+  --sidebar-foreground:       #9CA3AF;
   --sidebar-primary:          #3B82F6;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent:           #1A1A2E;
+  --sidebar-accent:           rgba(59,130,246,0.12);
   --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border:           rgba(255,255,255,0.05);
+  --sidebar-border:           rgba(255,255,255,0.06);
   --sidebar-ring:             #3B82F6;
 
   /* Glow tokens */

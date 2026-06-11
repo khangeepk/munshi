@@ -1,108 +1,158 @@
 <?php
 /**
  * Plugin Name:       Pak-Munshi Pro
- * Plugin URI:        https://github.com/samikhans/pak-munshi-pro
- * Description:       Professional Property & Tenant Management Suite for Pakistani landlords. Track buildings, tenants, billing, payments, and generate branded PDF invoices.
+ * Plugin URI:        https://pakmunshi.com
+ * Description:       Hierarchical Role-Based Multi-Tenant SaaS core system for PakMunshi Pro (Lawyer Case Management Suite).
  * Version:           1.0.0
  * Author:            Sami Khan - SQ Tech
  * Author URI:        #
- * Text Domain:       pak-munshi-pro
+ * Text Domain:       pak-munshi-saas
  * License:           GPL v2 or later
  *
  * Designed and Developed by Sami Khan - SQ Tech
  */
 
-if ( ! defined( 'ABSPATH' ) ) exit;
+if ( ! defined( 'ABSPATH' ) ) {
+    exit; // Exit if accessed directly.
+}
 
-// ─── Constants ───────────────────────────────────────────────────────────────
-define( 'MUNSHI_VERSION',     '1.0.0' );
-define( 'MUNSHI_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
-define( 'MUNSHI_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
-define( 'MUNSHI_SLUG',        'munshi-dashboard' );
-define( 'MUNSHI_DEVELOPER',   'Designed and Developed by Sami Khan - SQ Tech' );
+// Global Constants
+define( 'MUNSHI_VERSION', '1.0.0' );
+define( 'MUNSHI_DEVELOPER', 'Designed and Developed by Sami Khan - SQ Tech' );
+define( 'MUNSHI_SLUG', 'dashboard' );
 
-// ─── Includes ────────────────────────────────────────────────────────────────
-require_once MUNSHI_PLUGIN_DIR . 'includes/db-setup.php';
-require_once MUNSHI_PLUGIN_DIR . 'includes/ajax-handlers.php';
-require_once MUNSHI_PLUGIN_DIR . 'includes/pdf-generator.php';
-require_once MUNSHI_PLUGIN_DIR . 'includes/whatsapp-hook.php';
+// Include necessary plugin modules
+require_once plugin_dir_path( __FILE__ ) . 'includes/db-setup.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/ajax-handlers.php';
 
-// ─── Activation Hook ─────────────────────────────────────────────────────────
-register_activation_hook( __FILE__, 'munshi_activate' );
-function munshi_activate() {
+/**
+ * Register Activation Hooks
+ */
+register_activation_hook( __FILE__, 'pakmunshi_plugin_activate' );
+function pakmunshi_plugin_activate() {
     munshi_create_tables();
     munshi_create_dashboard_page();
     flush_rewrite_rules();
 }
 
-// ─── Deactivation Hook ───────────────────────────────────────────────────────
-register_deactivation_hook( __FILE__, function() {
+/**
+ * Register Deactivation Hooks
+ */
+register_deactivation_hook( __FILE__, 'pakmunshi_plugin_deactivate' );
+function pakmunshi_plugin_deactivate() {
     flush_rewrite_rules();
-});
-
-// ─── Admin Menu ──────────────────────────────────────────────────────────────
-add_action( 'admin_menu', 'munshi_register_menu' );
-function munshi_register_menu() {
-    add_menu_page(
-        'Pak-Munshi Pro',
-        'Pak-Munshi Pro',
-        'manage_options',
-        'pak-munshi-admin',
-        'munshi_admin_redirect',
-        'dashicons-building',
-        25
-    );
 }
 
-function munshi_admin_redirect() {
-    $url = home_url( '/' . MUNSHI_SLUG . '/' );
-    echo '<script>window.location.href="' . esc_url( $url ) . '";</script>';
-    echo '<p>Redirecting to <a href="' . esc_url( $url ) . '">Pak-Munshi Dashboard</a>...</p>';
+/**
+ * Enqueue Dashboard Assets
+ */
+add_action( 'wp_enqueue_scripts', 'pakmunshi_enqueue_dashboard_assets' );
+function pakmunshi_enqueue_dashboard_assets() {
+    // We only enqueue these on the dashboard page
+    if ( is_page( MUNSHI_SLUG ) ) {
+        wp_enqueue_style(
+            'munshi-style',
+            plugins_url( 'assets/css/style.css', __FILE__ ),
+            array(),
+            MUNSHI_VERSION
+        );
+
+        wp_enqueue_script(
+            'munshi-app',
+            plugins_url( 'assets/js/app.js', __FILE__ ),
+            array(),
+            MUNSHI_VERSION,
+            true
+        );
+
+        // Localize script to pass live AJAX endpoints & secure token
+        wp_localize_script( 'munshi-app', 'munshi_ajax', array(
+            'ajax_url' => admin_url( 'admin-ajax.php' ),
+            'nonce'    => wp_create_nonce( 'munshi_nonce' )
+        ));
+    }
 }
 
-// ─── Template Redirect (Standalone Shell) ────────────────────────────────────
-add_action( 'template_redirect', 'munshi_template_hijack' );
-function munshi_template_hijack() {
-    if ( ! is_page( MUNSHI_SLUG ) ) return;
+/**
+ * Theme Synchronization: Intercepts request routing for the /dashboard slug,
+ * completely bypassing Astra Pro headers/footers and loading our standalone template.
+ */
+add_action( 'template_redirect', 'pakmunshi_dashboard_template_redirect' );
+function pakmunshi_dashboard_template_redirect() {
+    if ( ! is_page( MUNSHI_SLUG ) ) {
+        return;
+    }
+
     if ( ! is_user_logged_in() ) {
         wp_redirect( wp_login_url( get_permalink() ) );
         exit;
     }
-    if ( ! current_user_can( 'manage_options' ) ) {
-        wp_die( __( 'Access denied. You need Administrator privileges to access Pak-Munshi Pro.', 'pak-munshi-pro' ) );
+
+    // Bypass standard theme wrapping templates
+    status_header( 200 );
+    
+    // Load the standalone dashboard layout
+    $template_path = plugin_dir_path( __FILE__ ) . 'templates/dashboard.php';
+    if ( file_exists( $template_path ) ) {
+        include $template_path;
+    } else {
+        wp_die( 'Dashboard template not found in plugin templates folder.' );
     }
-    include MUNSHI_PLUGIN_DIR . 'templates/dashboard.php';
     exit;
 }
 
-// ─── Enqueue Assets (for the standalone template only) ───────────────────────
-add_action( 'wp_enqueue_scripts', 'munshi_enqueue_assets' );
-function munshi_enqueue_assets() {
-    if ( ! is_page( MUNSHI_SLUG ) ) return;
+/**
+ * Live Server Cleanup: Automatically deletes duplicate 'pakmunshi' and copy folders (e.g. pak-munshi-pro-1)
+ */
+add_action( 'admin_init', 'pakmunshi_plugin_cleanup_duplicates' );
+function pakmunshi_plugin_cleanup_duplicates() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        return;
+    }
 
-    wp_enqueue_script( 'jquery' );
-    wp_enqueue_style(
-        'munshi-style',
-        MUNSHI_PLUGIN_URL . 'assets/css/style.css',
-        [],
-        MUNSHI_VERSION
-    );
-    wp_enqueue_script(
-        'munshi-app',
-        MUNSHI_PLUGIN_URL . 'assets/js/app.js',
-        [ 'jquery' ],
-        MUNSHI_VERSION,
-        true
-    );
-    wp_localize_script( 'munshi-app', 'munshiAjax', [
-        'ajaxUrl'   => admin_url( 'admin-ajax.php' ),
-        'nonce'     => wp_create_nonce( 'munshi_nonce' ),
-        'pluginUrl' => MUNSHI_PLUGIN_URL,
-        'siteUrl'   => home_url(),
-    ]);
+    $plugin_dir = WP_PLUGIN_DIR;
+    $items = scandir( $plugin_dir );
+    
+    foreach ( $items as $item ) {
+        if ( $item === '.' || $item === '..' ) {
+            continue;
+        }
+        
+        $path = $plugin_dir . '/' . $item;
+        if ( ! is_dir( $path ) ) {
+            continue;
+        }
+
+        // Detect and clean up duplicates
+        $is_duplicate = false;
+        $normalized_item = strtolower( $item );
+        
+        if ( $normalized_item === 'pakmunshi' ) {
+            $is_duplicate = true;
+        } elseif ( strpos( $normalized_item, 'pakmunshi-' ) === 0 ) {
+            $is_duplicate = true;
+        } elseif ( strpos( $normalized_item, 'pak-munshi-pro-' ) === 0 ) {
+            $is_duplicate = true;
+        }
+
+        if ( $is_duplicate ) {
+            pakmunshi_plugin_rrmdir( $path );
+        }
+    }
 }
 
-// ─── Shortcode (for manual placement fallback) ────────────────────────────────
-add_shortcode( 'pak_munshi_app_shell', function() {
-    return '<div id="munshi-app-shell">Loading Pak-Munshi Pro…</div>';
-});
+function pakmunshi_plugin_rrmdir( $dir ) {
+    if ( is_dir( $dir ) ) {
+        $objects = scandir( $dir );
+        foreach ( $objects as $object ) {
+            if ( $object != "." && $object != ".." ) {
+                if ( is_dir( $dir . "/" . $object ) && ! is_link( $dir . "/" . $object ) ) {
+                    pakmunshi_plugin_rrmdir( $dir . "/" . $object );
+                } else {
+                    unlink( $dir . "/" . $object );
+                }
+            }
+        }
+        rmdir( $dir );
+    }
+}

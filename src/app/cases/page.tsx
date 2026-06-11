@@ -454,8 +454,8 @@ function EditSideSheet({
             <button
               type="submit"
               disabled={saving}
-              className="px-6 py-2.5 rounded-xl text-sm font-bold text-white flex items-center gap-2 shadow-md hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-60 disabled:scale-100"
-              style={{ background: '#2563EB' }}
+              className="px-6 py-2.5 rounded-xl text-sm font-bold text-white flex items-center gap-2 shadow-md hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-60 disabled:scale-100 cursor-pointer"
+              style={{ background: 'var(--primary)' }}
             >
               {saving
                 ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
@@ -489,7 +489,7 @@ function EmptyState() {
       <Link
         href="/cases/new"
         className="inline-flex items-center gap-2 text-sm font-bold text-primary-foreground px-6 py-3 rounded-xl shadow-md hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all"
-        style={{ background: '#2563EB' }}
+        style={{ background: 'var(--primary)' }}
       >
         <Plus className="w-4 h-4" />
         Open Your First Case
@@ -705,7 +705,7 @@ export default function CasesList() {
             <Link
               href="/cases/new"
               className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-primary-foreground px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-md hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shrink-0"
-              style={{ background: '#2563EB' }}
+              style={{ background: 'var(--primary)' }}
             >
               <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline">Add Case</span>

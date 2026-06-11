@@ -1,14 +1,15 @@
 /**
- * Pak-Munshi Pro — Frontend App Logic
- * Designed and Developed by Sikandar Hayat Baba
+ * Pak-Munshi Pro — Frontend App Logic (Lawyer Case Management)
+ * Designed and Developed by Sami Khan - SQ Tech
  */
 (function ($) {
     'use strict';
 
-    const AJAX = munshiAjax.ajaxUrl;
-    const NONCE = munshiAjax.nonce;
+    // Retrieve WordPress Localized Variables
+    const AJAX = munshi_ajax.ajax_url;
+    const NONCE = munshi_ajax.nonce;
 
-    // ── Toast ─────────────────────────────────────────────────────────────────
+    // ── Toast Notifications ───────────────────────────────────────────────────
     function toast(msg, type = 'info') {
         const icons = { success: '✅', error: '❌', info: 'ℹ️', warning: '⚠️' };
         const $t = $(`<div class="toast-item ${type}"><span class="toast-dot">${icons[type]||'ℹ️'}</span><span>${msg}</span></div>`);
@@ -16,21 +17,31 @@
         setTimeout(() => $t.fadeOut(400, () => $t.remove()), 3500);
     }
 
-    // ── AJAX Helper ───────────────────────────────────────────────────────────
+    // ── Generic AJAX Requester ────────────────────────────────────────────────
     function ajax(action, data = {}, cb) {
         $.post(AJAX, { action: 'munshi_' + action, nonce: NONCE, ...data })
-            .done(res => { if (res.success) cb(null, res.data); else cb(res.data || 'Error'); })
-            .fail(() => cb('Network error'));
+            .done(res => { 
+                if (res.success) cb(null, res.data); 
+                else cb(res.data || 'Error'); 
+            })
+            .fail(() => cb('Network connection failed.'));
     }
 
-    // ── Navigation ────────────────────────────────────────────────────────────
+    // ── Navigation Tab switcher ───────────────────────────────────────────────
     $(document).on('click', '.nav-item', function () {
         const section = $(this).data('section');
         if (!section) return;
         $('.nav-item').removeClass('active');
         $(this).addClass('active');
         $('.munshi-section').removeClass('active');
-        $('#section-' + section).addClass('active');
+        
+        // Mapped elements for DOM ID compatibility
+        let targetId = section;
+        if (section === 'cases') targetId = 'cases';
+        else if (section === 'tenants') targetId = 'tenants';
+        else if (section === 'units') targetId = 'units';
+        
+        $('#section-' + targetId).addClass('active');
         $('#topbar-title').text($(this).find('.nav-label').text());
         loadSection(section);
     });
@@ -38,9 +49,9 @@
     function loadSection(name) {
         const loaders = {
             dashboard: loadDashboard,
-            properties: loadProperties,
-            units: loadUnits,
-            tenants: loadTenants,
+            cases: loadCases,
+            units: loadHearings,     // units mapped to hearings
+            tenants: loadClients,    // tenants mapped to clients
             billing: loadInvoices,
             payments: loadPayments,
             reports: loadReports,
@@ -48,24 +59,25 @@
         if (loaders[name]) loaders[name]();
     }
 
-    // ── Dashboard ─────────────────────────────────────────────────────────────
+    // ── 1. Dashboard Tab ──────────────────────────────────────────────────────
     function loadDashboard() {
         ajax('dashboard_init', {}, (err, data) => {
             if (err) return toast(err, 'error');
             const k = data.kpi;
-            $('#kpi-properties').text(k.properties || 0);
-            $('#kpi-occupied').text(k.occupied || 0);
-            $('#kpi-vacant').text(k.vacant || 0);
-            $('#kpi-tenants').text(k.tenants || 0);
+            
+            // Map KPIs
+            $('#kpi-properties').text(k.active_cases || 0);
+            $('#kpi-occupied').text(k.pending_hearings || 0);
+            $('#kpi-vacant').text(k.clients || 0);
             $('#kpi-dues').text('Rs. ' + fmtNum(k.total_dues || 0));
             $('#kpi-revenue').text('Rs. ' + fmtNum(k.this_month_revenue || 0));
 
-            // Recent payments table
+            // Populate Recent payments
             let html = '';
             (data.recent_payments || []).forEach(p => {
                 html += `<tr>
-                    <td>${p.receipt_number}</td>
-                    <td>${p.full_name}</td>
+                    <td>${esc(p.receipt_number)}</td>
+                    <td>${esc(p.client_name)}</td>
                     <td>Rs. ${fmtNum(p.amount)}</td>
                     <td>${p.paid_date}</td>
                     <td><span class="badge badge-green">Received</span></td>
@@ -73,38 +85,40 @@
             });
             $('#recent-payments-tbody').html(html || '<tr><td colspan="5" class="muted" style="text-align:center;padding:20px">No recent payments</td></tr>');
 
-            // Upcoming dues
+            // Populate Upcoming hearings
             let dues = '';
-            (data.upcoming_dues || []).forEach(i => {
+            (data.upcoming_dues || []).forEach(h => {
                 dues += `<tr>
-                    <td>${i.full_name}</td>
-                    <td>${i.property_name} / ${i.unit_number}</td>
-                    <td>Rs. ${fmtNum(i.balance)}</td>
-                    <td>${i.due_date}</td>
-                    <td><span class="badge badge-red">${i.status}</span></td>
+                    <td><strong>${esc(h.case_title)}</strong><br><small class="muted">${esc(h.case_number)}</small></td>
+                    <td>${h.hearing_date} ${h.hearing_time ? '@ ' + h.hearing_time : ''}</td>
+                    <td>${esc(h.court_name)}</td>
+                    <td>${esc(h.purpose)}</td>
+                    <td><span class="badge badge-blue">${esc(h.status)}</span></td>
                 </tr>`;
             });
-            $('#upcoming-dues-tbody').html(dues || '<tr><td colspan="5" class="muted" style="text-align:center;padding:20px">No pending dues</td></tr>');
+            $('#upcoming-dues-tbody').html(dues || '<tr><td colspan="5" class="muted" style="text-align:center;padding:20px">No upcoming hearings</td></tr>');
         });
     }
 
-    // ── Properties ────────────────────────────────────────────────────────────
-    function loadProperties() {
-        ajax('get_properties', {}, (err, data) => {
+    // ── 2. Court Cases Tab ────────────────────────────────────────────────────
+    function loadCases() {
+        ajax('get_cases', {}, (err, data) => {
             if (err) return toast(err, 'error');
             let html = '';
-            if (!data.length) { $('#properties-tbody').html(emptyRow(6)); return; }
-            data.forEach(p => {
-                const statusBadge = p.status === 'Active' ? 'badge-green' : 'badge-gray';
+            if (!data.length) { $('#properties-tbody').html(emptyRow(7)); return; }
+            data.forEach(c => {
+                const priorityBadge = c.priority === 'URGENT' || c.priority === 'HIGH' ? 'badge-red' : 'badge-gray';
+                const nextDate = c.next_hearing_date ? c.next_hearing_date.split(' ')[0] : 'None';
                 html += `<tr>
-                    <td><strong>${esc(p.name)}</strong></td>
-                    <td class="muted">${esc(p.address)}</td>
-                    <td>${esc(p.type)}</td>
-                    <td>${p.total_units || 0}</td>
-                    <td><span class="badge ${statusBadge}">${p.status}</span></td>
+                    <td><strong>${esc(c.case_title)}</strong><br><small class="muted">No. ${esc(c.case_number)}</small></td>
+                    <td>${esc(c.client_name)}<br><small class="muted">${esc(c.client_phone)}</small></td>
+                    <td>${esc(c.case_type)}</td>
+                    <td>${esc(c.court_name)}</td>
+                    <td>${esc(c.judge_name || '—')}</td>
+                    <td><span class="badge badge-blue">${c.status}</span><br><span class="badge ${priorityBadge}" style="margin-top:4px">${c.priority}</span></td>
                     <td class="actions">
-                        <button class="btn btn-glass btn-xs edit-property" data-id="${p.id}">✏️ Edit</button>
-                        <button class="btn btn-danger btn-xs del-property" data-id="${p.id}" data-name="${esc(p.name)}">🗑</button>
+                        <button class="btn btn-glass btn-xs edit-property" data-id="${c.id}">✏️ Edit</button>
+                        <button class="btn btn-danger btn-xs del-property" data-id="${c.id}" data-name="${esc(c.case_title)}">🗑</button>
                     </td>
                 </tr>`;
             });
@@ -112,62 +126,102 @@
         });
     }
 
-    $(document).on('click', '#btn-add-property', () => openPropertyModal());
+    $(document).on('click', '#btn-add-property', () => openCaseModal());
     $(document).on('click', '.edit-property', function () {
         const id = $(this).data('id');
-        const row = $(this).closest('tr');
-        openPropertyModal({
-            id, name: row.find('td:eq(0)').text().trim(),
-            address: row.find('td:eq(1)').text().trim(),
-            type: row.find('td:eq(2)').text().trim(),
-        });
-    });
-    $(document).on('click', '.del-property', function () {
-        const id = $(this).data('id'), name = $(this).data('name');
-        if (!confirm(`Delete property "${name}"? This cannot be undone.`)) return;
-        ajax('delete_property', { id }, (err) => {
-            if (err) return toast(err, 'error');
-            toast('Property deleted.', 'success'); loadProperties();
+        ajax('get_cases', {}, (err, cases) => {
+            if (err) return;
+            const c = cases.find(item => item.id == id);
+            if (c) {
+                openCaseModal({
+                    id: c.id,
+                    client_id: c.client_id,
+                    case_title: c.case_title,
+                    case_number: c.case_number,
+                    case_type: c.case_type,
+                    court_name: c.court_name,
+                    judge_name: c.judge_name,
+                    opposite_party: c.opposite_party,
+                    opposite_counsel: c.opposite_counsel,
+                    fir_number: c.fir_number,
+                    police_station: c.police_station,
+                    description: c.description,
+                    internal_notes: c.internal_notes,
+                    status: c.status,
+                    priority: c.priority,
+                    next_hearing_date: c.next_hearing_date ? c.next_hearing_date.split(' ')[0] : ''
+                });
+            }
         });
     });
 
-    function openPropertyModal(data = {}) {
+    $(document).on('click', '.del-property', function () {
+        const id = $(this).data('id'), name = $(this).data('name');
+        if (!confirm(`Are you sure you want to delete case file "${name}"? All related hearings will be deleted.`)) return;
+        ajax('delete_case', { id }, (err) => {
+            if (err) return toast(err, 'error');
+            toast('Case deleted.', 'success'); loadCases();
+        });
+    });
+
+    function openCaseModal(data = {}) {
+        $('#form-property')[0].reset();
         $('#prop-id').val(data.id || '');
-        $('#prop-name').val(data.name || '');
-        $('#prop-address').val(data.address || '');
-        $('#prop-type').val(data.type || 'Residential');
+        
+        // Populate Client Dropdown
+        ajax('get_clients', {}, (err, clients) => {
+            if (err) return;
+            let opts = clients.map(cl => `<option value="${cl.id}">${esc(cl.name)} (${esc(cl.phone)})</option>`).join('');
+            $('#prop-client').html('<option value="">Select Client</option>' + opts);
+            if (data.client_id) $('#prop-client').val(data.client_id);
+        });
+
+        if (data.id) {
+            $('#prop-name').val(data.case_title || '');
+            $('#prop-address').val(data.case_number || '');
+            $('#prop-type').val(data.case_type || 'Civil');
+            $('#prop-floors').val(data.court_name || '');
+            $('[name="judge_name"]').val(data.judge_name || '');
+            $('[name="opposite_party"]').val(data.opposite_party || '');
+            $('[name="opposite_counsel"]').val(data.opposite_counsel || '');
+            $('[name="fir_number"]').val(data.fir_number || '');
+            $('[name="police_station"]').val(data.police_station || '');
+            $('[name="priority"]').val(data.priority || 'MEDIUM');
+            $('#prop-status').val(data.status || 'ONGOING');
+            $('[name="description"]').val(data.description || '');
+            $('[name="internal_notes"]').val(data.internal_notes || '');
+        }
+
         $('#modal-property').addClass('open');
     }
 
     $(document).on('submit', '#form-property', function (e) {
         e.preventDefault();
-        const payload = { id: $('#prop-id').val(), name: $('#prop-name').val(), address: $('#prop-address').val(), type: $('#prop-type').val(), total_floors: $('#prop-floors').val(), status: $('#prop-status').val() };
-        ajax('save_property', payload, (err, res) => {
+        ajax('save_case', $(this).serialize(), (err, res) => {
             if (err) return toast(err, 'error');
             toast(res.message, 'success');
             closeModal('#modal-property');
-            loadProperties();
+            loadCases();
         });
     });
 
-    // ── Units ─────────────────────────────────────────────────────────────────
-    function loadUnits() {
-        ajax('get_units', {}, (err, data) => {
+    // ── 3. Court Hearings Diary Tab ──────────────────────────────────────────
+    function loadHearings() {
+        ajax('get_hearings', {}, (err, data) => {
             if (err) return toast(err, 'error');
             let html = '';
-            if (!data.length) { $('#units-tbody').html(emptyRow(7)); return; }
-            data.forEach(u => {
-                const badge = u.status === 'Occupied' ? 'badge-green' : u.status === 'Vacant' ? 'badge-yellow' : 'badge-red';
+            if (!data.length) { $('#units-tbody').html(emptyRow(6)); return; }
+            data.forEach(h => {
+                const badge = h.status === 'SCHEDULED' ? 'badge-blue' : h.status === 'HEARD' ? 'badge-green' : 'badge-red';
                 html += `<tr>
-                    <td>${esc(u.property_name)}</td>
-                    <td><strong>${esc(u.unit_number)}</strong></td>
-                    <td>Floor ${u.floor}</td>
-                    <td>${esc(u.unit_type)}</td>
-                    <td>Rs. ${fmtNum(u.rent_amount)}</td>
-                    <td><span class="badge ${badge}">${u.status}</span>${u.tenant_name ? '<br><small class="muted">'+esc(u.tenant_name)+'</small>':''}</td>
+                    <td><strong>${esc(h.case_title)}</strong><br><small class="muted">${esc(h.case_number)}</small></td>
+                    <td><strong>${h.hearing_date}</strong>${h.hearing_time ? '<br><small class="muted">' + h.hearing_time + '</small>' : ''}</td>
+                    <td>${esc(h.court_name)}</td>
+                    <td>${esc(h.purpose)}</td>
+                    <td><span class="badge ${badge}">${h.status}</span></td>
                     <td class="actions">
-                        <button class="btn btn-glass btn-xs edit-unit" data-id="${u.id}">✏️</button>
-                        <button class="btn btn-danger btn-xs del-unit" data-id="${u.id}">🗑</button>
+                        <button class="btn btn-glass btn-xs edit-unit" data-id="${h.id}">✏️</button>
+                        <button class="btn btn-danger btn-xs del-unit" data-id="${h.id}">🗑</button>
                     </td>
                 </tr>`;
             });
@@ -175,56 +229,89 @@
         });
     }
 
-    $(document).on('click', '#btn-add-unit', () => openUnitModal());
-    $(document).on('click', '.edit-unit', function () { openUnitModal({ id: $(this).data('id') }); });
-    $(document).on('click', '.del-unit', function () {
-        if (!confirm('Delete this unit?')) return;
-        ajax('delete_unit', { id: $(this).data('id') }, (err) => {
-            if (err) return toast(err, 'error');
-            toast('Unit deleted.', 'success'); loadUnits();
+    $(document).on('click', '#btn-add-unit', () => openHearingModal());
+    $(document).on('click', '.edit-unit', function () {
+        const id = $(this).data('id');
+        ajax('get_hearings', {}, (err, hearings) => {
+            if (err) return;
+            const h = hearings.find(item => item.id == id);
+            if (h) {
+                openHearingModal({
+                    id: h.id,
+                    case_id: h.case_id,
+                    hearing_date: h.hearing_date,
+                    hearing_time: h.hearing_time,
+                    court_name: h.court_name,
+                    purpose: h.purpose,
+                    status: h.status,
+                    next_hearing_date: h.next_hearing_date,
+                    order_summary: h.order_summary,
+                    remarks: h.remarks
+                });
+            }
         });
     });
 
-    function openUnitModal(data = {}) {
+    $(document).on('click', '.del-unit', function () {
+        if (!confirm('Are you sure you want to delete this hearing record?')) return;
+        ajax('delete_hearing', { id: $(this).data('id') }, (err) => {
+            if (err) return toast(err, 'error');
+            toast('Hearing deleted.', 'success'); loadHearings();
+        });
+    });
+
+    function openHearingModal(data = {}) {
         $('#unit-form')[0].reset();
         $('#unit-id').val(data.id || '');
-        // Populate property dropdown
-        ajax('get_properties', {}, (err, props) => {
+        
+        // Populate Cases dropdown
+        ajax('get_cases', {}, (err, cases) => {
             if (err) return;
-            let opts = props.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
-            $('#unit-property').html('<option value="">Select Property</option>' + opts);
+            let opts = cases.map(c => `<option value="${c.id}">${esc(c.case_title)} (${esc(c.case_number)})</option>`).join('');
+            $('#unit-property').html('<option value="">Select Case</option>' + opts);
+            if (data.case_id) $('#unit-property').val(data.case_id);
         });
+
+        if (data.id) {
+            $('[name="hearing_date"]').val(data.hearing_date || '');
+            $('[name="hearing_time"]').val(data.hearing_time || '');
+            $('[name="court_name"]').val(data.court_name || '');
+            $('[name="purpose"]').val(data.purpose || '');
+            $('[name="status"]').val(data.status || 'SCHEDULED');
+            $('[name="next_hearing_date"]').val(data.next_hearing_date || '');
+            $('[name="order_summary"]').val(data.order_summary || '');
+            $('[name="remarks"]').val(data.remarks || '');
+        }
+
         $('#modal-unit').addClass('open');
     }
 
     $(document).on('submit', '#unit-form', function (e) {
         e.preventDefault();
-        ajax('save_unit', $(this).serialize() + '&nonce=' + NONCE, (err, res) => {
+        ajax('save_hearing', $(this).serialize(), (err, res) => {
             if (err) return toast(err, 'error');
-            toast(res.message, 'success'); closeModal('#modal-unit'); loadUnits();
+            toast(res.message, 'success'); closeModal('#modal-unit'); loadHearings();
         });
     });
 
-    // ── Tenants ───────────────────────────────────────────────────────────────
-    function loadTenants() {
-        ajax('get_tenants', {}, (err, data) => {
+    // ── 4. Clients Directory Tab ──────────────────────────────────────────────
+    function loadClients() {
+        ajax('get_clients', {}, (err, data) => {
             if (err) return toast(err, 'error');
             let html = '';
             if (!data.length) { $('#tenants-tbody').html(emptyRow(7)); return; }
-            data.forEach(t => {
-                const statusBadge = t.status === 'Active' ? 'badge-green' : 'badge-gray';
-                const expiryAlert = t.expiry_alert ? '<br><span class="badge badge-yellow">⚠️ Expiring Soon</span>' : '';
+            data.forEach(cl => {
                 html += `<tr>
-                    <td><strong>${esc(t.full_name)}</strong><br><small class="muted">${esc(t.cnic||'')}</small></td>
-                    <td>${esc(t.property_name)} / <strong>${esc(t.unit_number)}</strong></td>
-                    <td>${esc(t.phone)}</td>
-                    <td>Rs. ${fmtNum(t.rent_amount)}</td>
-                    <td>${t.agreement_end||'Open'}${expiryAlert}</td>
-                    <td><span class="badge ${statusBadge}">${t.status}</span></td>
+                    <td><strong>${esc(cl.name)}</strong><br><small class="muted">CNIC: ${esc(cl.cnic || '—')}</small></td>
+                    <td>${esc(cl.phone)}</td>
+                    <td>${esc(cl.whatsapp || '—')}</td>
+                    <td>${esc(cl.email || '—')}</td>
+                    <td>${cl.total_cases || 0}</td>
+                    <td><span class="badge ${cl.active_cases > 0 ? 'badge-red' : 'badge-gray'}">${cl.active_cases || 0} Active</span></td>
                     <td class="actions">
-                        <button class="btn btn-glass btn-xs edit-tenant" data-id="${t.id}">✏️</button>
-                        <button class="btn btn-primary btn-xs gen-invoice" data-id="${t.id}" data-name="${esc(t.full_name)}">🧾</button>
-                        <button class="btn btn-danger btn-xs del-tenant" data-id="${t.id}">🗑</button>
+                        <button class="btn btn-glass btn-xs edit-tenant" data-id="${cl.id}">✏️</button>
+                        <button class="btn btn-primary btn-xs gen-invoice" data-id="${cl.id}" data-name="${esc(cl.name)}">🧾 Fee</button>
+                        <button class="btn btn-danger btn-xs del-tenant" data-id="${cl.id}">🗑</button>
                     </td>
                 </tr>`;
             });
@@ -232,70 +319,125 @@
         });
     }
 
-    $(document).on('click', '#btn-add-tenant', () => openTenantModal());
-    $(document).on('click', '.edit-tenant', function () { openTenantModal({ id: $(this).data('id') }); });
-    $(document).on('click', '.del-tenant', function () {
-        if (!confirm('Remove this tenant? Unit will be marked Vacant.')) return;
-        ajax('delete_tenant', { id: $(this).data('id') }, (err) => {
-            if (err) return toast(err, 'error');
-            toast('Tenant removed.', 'success'); loadTenants();
+    $(document).on('click', '#btn-add-tenant', () => openClientModal());
+    $(document).on('click', '.edit-tenant', function () {
+        const id = $(this).data('id');
+        ajax('get_clients', {}, (err, clients) => {
+            if (err) return;
+            const cl = clients.find(item => item.id == id);
+            if (cl) {
+                openClientModal({
+                    id: cl.id,
+                    name: cl.name,
+                    email: cl.email,
+                    phone: cl.phone,
+                    whatsapp: cl.whatsapp,
+                    cnic: cl.cnic,
+                    address: cl.address,
+                    notes: cl.notes
+                });
+            }
         });
     });
 
-    function openTenantModal(data = {}) {
+    $(document).on('click', '.del-tenant', function () {
+        if (!confirm('Are you sure you want to delete this client? This cannot be undone.')) return;
+        ajax('delete_client', { id: $(this).data('id') }, (err) => {
+            if (err) return toast(err, 'error');
+            toast('Client removed successfully.', 'success'); loadClients();
+        });
+    });
+
+    function openClientModal(data = {}) {
         $('#tenant-form')[0].reset();
         $('#tenant-id').val(data.id || '');
-        ajax('get_units', {}, (err, units) => {
-            if (err) return;
-            let opts = units.filter(u => u.status === 'Vacant' || (data.id && u.status === 'Occupied'))
-                .map(u => `<option value="${u.id}">${esc(u.property_name)} — Unit ${esc(u.unit_number)} (${u.status})</option>`).join('');
-            $('#tenant-unit').html('<option value="">Select Unit</option>' + opts);
-        });
+        if (data.id) {
+            $('[name="name"]').val(data.name || '');
+            $('[name="email"]').val(data.email || '');
+            $('[name="phone"]').val(data.phone || '');
+            $('[name="whatsapp"]').val(data.whatsapp || '');
+            $('[name="cnic"]').val(data.cnic || '');
+            $('[name="address"]').val(data.address || '');
+            $('[name="notes"]').val(data.notes || '');
+        }
         $('#modal-tenant').addClass('open');
     }
 
     $(document).on('submit', '#tenant-form', function (e) {
         e.preventDefault();
         const fd = new FormData(this);
-        fd.append('action', 'munshi_save_tenant');
+        fd.append('action', 'munshi_save_client');
         fd.append('nonce', NONCE);
+        
         $.ajax({ url: AJAX, type: 'POST', data: fd, processData: false, contentType: false })
             .done(res => {
-                if (res.success) { toast(res.data.message, 'success'); closeModal('#modal-tenant'); loadTenants(); }
-                else toast(res.data, 'error');
-            }).fail(() => toast('Network error', 'error'));
+                if (res.success) { 
+                    toast(res.data.message, 'success'); 
+                    closeModal('#modal-tenant'); 
+                    loadClients(); 
+                } else {
+                    toast(res.data, 'error');
+                }
+            })
+            .fail(() => toast('Network error occurred.', 'error'));
     });
 
-    // ── Invoice Generation ────────────────────────────────────────────────────
+    // ── 5. Fee Invoices Tab ───────────────────────────────────────────────────
     $(document).on('click', '.gen-invoice', function () {
         $('#inv-tenant-id').val($(this).data('id'));
         $('#inv-tenant-name').text($(this).data('name'));
-        $('#inv-month').val(new Date().toISOString().slice(0, 7));
+        $('#inv-case-select').html('<option value="">General Consultation</option>');
+        
+        // Populate client-specific cases
+        ajax('get_cases', {}, (err, cases) => {
+            if (!err) {
+                const clientCases = cases.filter(c => c.client_id == $(this).data('id'));
+                let opts = clientCases.map(c => `<option value="${c.id}">${esc(c.case_title)} (${esc(c.case_number)})</option>`).join('');
+                $('#inv-case-select').html('<option value="">General Consultation</option>' + opts);
+            }
+        });
+        
+        $('#inv-other').val(new Date(Date.now() + 7*24*60*60*1000).toISOString().slice(0, 10)); // default due date = 7 days
+        $('#inv-tenant-select').hide();
         $('#modal-invoice').addClass('open');
     });
 
     $(document).on('click', '#btn-add-invoice', () => {
-        ajax('get_tenants', {}, (err, tenants) => {
+        ajax('get_clients', {}, (err, clients) => {
             if (err) return;
-            let opts = tenants.filter(t => t.status === 'Active')
-                .map(t => `<option value="${t.id}">${esc(t.full_name)} — ${esc(t.unit_number)}</option>`).join('');
-            $('#inv-tenant-select').html('<option value="">Select Tenant</option>' + opts).show();
+            let opts = clients.map(cl => `<option value="${cl.id}">${esc(cl.name)} — ${esc(cl.phone)}</option>`).join('');
+            $('#inv-tenant-select').html('<option value="">Select Client</option>' + opts).show();
             $('#inv-tenant-id').val('');
             $('#inv-tenant-name').text('');
+            $('#inv-case-select').html('<option value="">Select client first</option>');
             $('#modal-invoice').addClass('open');
+        });
+    });
+
+    $(document).on('change', '#inv-tenant-select', function() {
+        const clId = $(this).val();
+        if (!clId) {
+            $('#inv-case-select').html('<option value="">Select client first</option>');
+            return;
+        }
+        ajax('get_cases', {}, (err, cases) => {
+            if (!err) {
+                const clientCases = cases.filter(c => c.client_id == clId);
+                let opts = clientCases.map(c => `<option value="${c.id}">${esc(c.case_title)} (${esc(c.case_number)})</option>`).join('');
+                $('#inv-case-select').html('<option value="">General Consultation</option>' + opts);
+            }
         });
     });
 
     $(document).on('submit', '#invoice-form', function (e) {
         e.preventDefault();
-        const tenantId = $('#inv-tenant-id').val() || $('#inv-tenant-select').val();
+        const clientId = $('#inv-tenant-id').val() || $('#inv-tenant-select').val();
         ajax('generate_invoice', {
-            tenant_id: tenantId,
-            billing_month: $('#inv-month').val(),
-            electricity_units: $('#inv-elec-units').val(),
-            electricity_rate: $('#inv-elec-rate').val() || 25,
-            other_charges: $('#inv-other').val() || 0,
-            other_desc: $('#inv-other-desc').val(),
+            tenant_id: clientId, // mapped parameter name
+            case_id: $('#inv-case-select').val() || 0,
+            amount: $('#inv-elec-units').val(),      // mapped Agreed Fee
+            discount: $('#inv-elec-rate').val() || 0, // mapped Discount
+            due_date: $('#inv-other').val(),         // mapped Due Date
         }, (err, res) => {
             if (err) return toast(err, 'error');
             toast(res.message + ' | Total: Rs. ' + fmtNum(res.total), 'success');
@@ -308,21 +450,20 @@
         ajax('get_invoices', {}, (err, data) => {
             if (err) return toast(err, 'error');
             let html = '';
-            if (!data.length) { $('#invoices-tbody').html(emptyRow(8)); return; }
+            if (!data.length) { $('#invoices-tbody').html(emptyRow(7)); return; }
             data.forEach(i => {
                 const badge = i.status === 'Paid' ? 'badge-green' : i.status === 'Partial' ? 'badge-yellow' : 'badge-red';
+                const caseInfo = i.case_title ? esc(i.case_title) + `<br><small class="muted">${esc(i.case_number)}</small>` : '<span class="muted">General Consultation</span>';
                 html += `<tr>
                     <td><strong>${esc(i.invoice_number)}</strong></td>
-                    <td>${esc(i.full_name)}</td>
-                    <td>${esc(i.property_name)} / ${esc(i.unit_number)}</td>
-                    <td>${esc(i.billing_month)}</td>
+                    <td>${esc(i.client_name)}</td>
+                    <td>${caseInfo}</td>
                     <td>Rs. ${fmtNum(i.total_amount)}</td>
                     <td class="${i.balance > 0 ? 'status-maintenance' : ''}">Rs. ${fmtNum(i.balance)}</td>
                     <td><span class="badge ${badge}">${i.status}</span></td>
                     <td class="actions">
-                        <button class="btn btn-success btn-xs record-payment" data-id="${i.id}" data-num="${esc(i.invoice_number)}" data-balance="${i.balance}">💰 Pay</button>
+                        ${i.balance > 0 ? `<button class="btn btn-success btn-xs record-payment" data-id="${i.id}" data-num="${esc(i.invoice_number)}" data-balance="${i.balance}">💰 Pay</button>` : ''}
                         <button class="btn btn-glass btn-xs download-invoice" data-id="${i.id}">📄 PDF</button>
-                        <button class="btn btn-warning btn-xs send-reminder" data-id="${i.id}">📱 WA</button>
                     </td>
                 </tr>`;
             });
@@ -330,7 +471,7 @@
         });
     }
 
-    // ── Payments ──────────────────────────────────────────────────────────────
+    // ── 6. Payments Ledger Tab ────────────────────────────────────────────────
     $(document).on('click', '.record-payment', function () {
         $('#pay-invoice-id').val($(this).data('id'));
         $('#pay-invoice-num').text($(this).data('num'));
@@ -362,14 +503,13 @@
         ajax('get_payments', {}, (err, data) => {
             if (err) return toast(err, 'error');
             let html = '';
-            if (!data.length) { $('#payments-tbody').html(emptyRow(6)); return; }
+            if (!data.length) { $('#payments-tbody').html(emptyRow(5)); return; }
             data.forEach(p => {
                 html += `<tr>
                     <td>${esc(p.receipt_number)}</td>
-                    <td>${esc(p.full_name)}</td>
-                    <td>${esc(p.invoice_number)} (${esc(p.billing_month)})</td>
+                    <td>${esc(p.client_name)}</td>
+                    <td>${esc(p.invoice_number)} (${esc(p.paid_date)})</td>
                     <td><strong>Rs. ${fmtNum(p.amount)}</strong></td>
-                    <td>${p.paid_date}</td>
                     <td><span class="badge badge-blue">${esc(p.payment_method)}</span></td>
                 </tr>`;
             });
@@ -377,55 +517,31 @@
         });
     }
 
-    // ── PDF Download ──────────────────────────────────────────────────────────
-    $(document).on('click', '.download-invoice', function () {
-        const id = $(this).data('id');
-        const form = $('<form method="POST" target="_blank" style="display:none"></form>').attr('action', AJAX);
-        form.append(`<input name="action" value="munshi_download_invoice">`);
-        form.append(`<input name="nonce" value="${NONCE}">`);
-        form.append(`<input name="invoice_id" value="${id}">`);
-        $('body').append(form);
-        form.submit();
-        setTimeout(() => form.remove(), 1000);
-    });
-
-    // ── WA Reminder ───────────────────────────────────────────────────────────
-    $(document).on('click', '.send-reminder', function () {
-        const id = $(this).data('id');
-        ajax('send_wa_reminder', { invoice_id: id }, (err, res) => {
-            if (err) return toast(err, 'error');
-            if (res.wa_link) {
-                toast('Opening WhatsApp...', 'info');
-                window.open(res.wa_link, '_blank');
-            } else {
-                toast('Reminder sent via WhatsApp API!', 'success');
-            }
-        });
-    });
-
-    // ── Reports ───────────────────────────────────────────────────────────────
+    // ── 7. Analytics & Reports Tab ────────────────────────────────────────────
     function loadReports() {
         const year = $('#report-year').val() || new Date().getFullYear();
         ajax('get_analytics', { year }, (err, data) => {
             if (err) return toast(err, 'error');
             const k = data.kpi;
-            $('#rpt-properties').text(k.total_properties);
-            $('#rpt-occupied').text(k.occupied + ' / ' + k.total_units);
-            $('#rpt-tenants').text(k.active_tenants);
-            $('#rpt-dues').text('Rs. ' + fmtNum(k.total_dues));
-            $('#rpt-revenue').text('Rs. ' + fmtNum(k.yearly_revenue));
+            
+            // Map Reports KPIs
+            $('#rpt-properties').text(k.active_cases || 0);
+            $('#rpt-occupied').text(k.closed_cases || 0);
+            $('#rpt-tenants').text(k.clients || 0);
+            $('#rpt-dues').text('Rs. ' + fmtNum(k.total_dues || 0));
+            $('#rpt-revenue').text('Rs. ' + fmtNum(k.yearly_revenue || 0));
             drawChart(data.revenue, data.billed);
 
             let expHtml = '';
-            (data.expiring || []).forEach(t => {
+            (data.expiring || []).forEach(h => {
                 expHtml += `<tr>
-                    <td>${esc(t.full_name)}</td>
-                    <td>${esc(t.property_name)} / ${esc(t.unit_number)}</td>
-                    <td>${t.agreement_end}</td>
-                    <td><span class="badge badge-yellow">Expiring</span></td>
+                    <td><strong>${esc(h.case_title)}</strong><br><small class="muted">${esc(h.case_number)}</small></td>
+                    <td>${h.hearing_date} ${h.hearing_time ? '@ ' + h.hearing_time : ''}</td>
+                    <td>${esc(h.court_name)}</td>
+                    <td>${esc(h.purpose)}</td>
                 </tr>`;
             });
-            $('#expiring-tbody').html(expHtml || '<tr><td colspan="4" class="muted" style="text-align:center;padding:20px">No expiring agreements</td></tr>');
+            $('#expiring-tbody').html(expHtml || '<tr><td colspan="4" class="muted" style="text-align:center;padding:20px">No hearings scheduled in the next 30 days</td></tr>');
         });
     }
 
@@ -456,17 +572,17 @@
         const max = Math.max(...collected, ...billedArr, 1);
         const barW = W / months.length;
 
-        // Grid lines
+        // Draw grid lines
         ctx.strokeStyle = 'rgba(99,179,237,0.08)';
         ctx.lineWidth = 1;
         for (let i = 0; i <= 4; i++) {
             const y = pad.top + (H / 4) * i;
             ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + W, y); ctx.stroke();
-            ctx.fillStyle = '#475569'; ctx.font = '11px Inter,sans-serif'; ctx.textAlign = 'right';
+            ctx.fillStyle = '#94a3b8'; ctx.font = '11px Inter,sans-serif'; ctx.textAlign = 'right';
             ctx.fillText('Rs.' + fmtNum(max - (max / 4) * i), pad.left - 8, y + 4);
         }
 
-        // Bars — Billed
+        // Draw Billed bars
         months.forEach((m, i) => {
             const x = pad.left + i * barW + barW * 0.1;
             const bH = (billedArr[i] / max) * H;
@@ -476,7 +592,7 @@
             ctx.fill();
         });
 
-        // Bars — Collected
+        // Draw Collected bars
         months.forEach((m, i) => {
             const x = pad.left + i * barW + barW * 0.52;
             const bH = (collected[i] / max) * H;
@@ -486,7 +602,7 @@
             ctx.fill();
         });
 
-        // X labels
+        // Draw X-axis month labels
         ctx.fillStyle = '#64748b'; ctx.textAlign = 'center'; ctx.font = '11px Inter,sans-serif';
         months.forEach((m, i) => {
             ctx.fillText(m, pad.left + i * barW + barW / 2, canvas.height - 10);
@@ -495,7 +611,19 @@
 
     $(document).on('change', '#report-year', loadReports);
 
-    // ── Search ────────────────────────────────────────────────────────────────
+    // ── PDF Download Integration ──────────────────────────────────────────────
+    $(document).on('click', '.download-invoice', function () {
+        const id = $(this).data('id');
+        const form = $('<form method="POST" target="_blank" style="display:none"></form>').attr('action', AJAX);
+        form.append(`<input name="action" value="munshi_download_invoice">`);
+        form.append(`<input name="nonce" value="${NONCE}">`);
+        form.append(`<input name="invoice_id" value="${id}">`);
+        $('body').append(form);
+        form.submit();
+        setTimeout(() => form.remove(), 1000);
+    });
+
+    // ── Table Live Search ─────────────────────────────────────────────────────
     $(document).on('input', '.live-search', function () {
         const q = $(this).val().toLowerCase();
         const target = $(this).data('target');
@@ -504,7 +632,7 @@
         });
     });
 
-    // ── Modals ────────────────────────────────────────────────────────────────
+    // ── Modals Close Helpers ──────────────────────────────────────────────────
     $(document).on('click', '.modal-close, .modal-overlay', function (e) {
         if ($(e.target).hasClass('modal-overlay') || $(e.target).hasClass('modal-close')) {
             closeModal('.modal-overlay.open');
@@ -517,10 +645,10 @@
     function fmtNum(n) { return parseInt(n || 0).toLocaleString('en-PK'); }
     function esc(s) { return $('<span>').text(s || '').html(); }
     function emptyRow(cols) {
-        return `<tr><td colspan="${cols}" style="text-align:center;padding:40px;color:var(--text-muted)">📂 No records found</td></tr>`;
+        return `<tr><td colspan="${cols}" style="text-align:center;padding:40px;color:var(--text-muted)">📂 No active records found.</td></tr>`;
     }
 
-    // ── Init ──────────────────────────────────────────────────────────────────
+    // ── App Start ─────────────────────────────────────────────────────────────
     $(document).ready(function () {
         loadDashboard();
         const yr = new Date().getFullYear();
